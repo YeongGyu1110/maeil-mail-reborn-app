@@ -12,7 +12,8 @@ class ContentStore(filesDir: File) {
     private val root = File(filesDir, "content")
     private val manifestFile = File(root, "manifest.json")
 
-    data class Manifest(val commit: String, val syncedAt: Long)
+    /** tracked: 그때 받던 파일 종류의 판 (ContentSync.TRACKED_VERSION). 받는 파일이 늘면 같은 커밋이어도 다시 비교한다 */
+    data class Manifest(val commit: String, val syncedAt: Long, val tracked: Int = 0)
 
     fun file(path: String): File = File(root, path)
 
@@ -50,13 +51,14 @@ class ContentStore(filesDir: File) {
 
     fun manifest(): Manifest? = runCatching {
         val o = JSONObject(manifestFile.readText())
-        Manifest(o.getString("commit"), o.getLong("syncedAt"))
+        Manifest(o.getString("commit"), o.getLong("syncedAt"), o.optInt("tracked", 0))
     }.getOrNull()
 
     fun saveManifest(manifest: Manifest) {
         write(
             manifestFile.relativeTo(root).path,
-            JSONObject().put("commit", manifest.commit).put("syncedAt", manifest.syncedAt).toString().toByteArray(),
+            JSONObject().put("commit", manifest.commit).put("syncedAt", manifest.syncedAt).put("tracked", manifest.tracked)
+                .toString().toByteArray(),
         )
     }
 

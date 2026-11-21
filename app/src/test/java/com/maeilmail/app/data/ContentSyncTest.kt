@@ -28,8 +28,8 @@ class ContentSyncTest {
         assertTrue(Source.isTracked("frontend/toc.md"))
         assertTrue(Source.isTracked("backend/contents/be-22.md"))
         assertTrue(Source.isTracked("search-synonyms.js"))
+        assertTrue(Source.isTracked("progress.json"))
         assertFalse(Source.isTracked("index.html"))
-        assertFalse(Source.isTracked("progress.json"))
         assertFalse(Source.isTracked("frontend/notes.txt"))
     }
 }

@@ -7,9 +7,10 @@ object Source {
     const val BRANCH = "master"
     const val SYNONYMS_PATH = "search-synonyms.js"
 
-    /** 앱이 받아 두는 파일: 영역별 목차·카테고리 목차·답변, 검색 동의어 */
+    /** 앱이 받아 두는 파일: 영역별 목차·카테고리 목차·답변, 검색 동의어, 발송 기록(progress.json) */
     fun isTracked(path: String): Boolean =
-        path == SYNONYMS_PATH || AREAS.any { path.startsWith("${it.dir}/") && path.endsWith(".md") }
+        path == SYNONYMS_PATH || path == Progress.PATH ||
+            AREAS.any { path.startsWith("${it.dir}/") && path.endsWith(".md") }
 }
 
 /**

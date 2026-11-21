@@ -41,7 +41,7 @@ class ContentSync(private val store: ContentStore) {
             throw e
         }
         val manifest = store.manifest()
-        if (manifest?.commit == commit) {
+        if (manifest?.commit == commit && manifest.tracked == TRACKED_VERSION) {
             store.saveManifest(manifest.copy(syncedAt = System.currentTimeMillis()))
             return@withContext Result.UpToDate
         }
@@ -58,7 +58,7 @@ class ContentSync(private val store: ContentStore) {
         val files = download(plan.download, ref = commit, expected = remote, onProgress = onProgress)
         writeAll(files)
         plan.remove.forEach(store::delete)
-        store.saveManifest(ContentStore.Manifest(commit, System.currentTimeMillis()))
+        store.saveManifest(ContentStore.Manifest(commit, System.currentTimeMillis(), TRACKED_VERSION))
         if (plan.download.isEmpty() && plan.remove.isEmpty()) Result.UpToDate
         else Result.Updated(plan.download.size, plan.remove.size)
     }
@@ -89,9 +89,10 @@ class ContentSync(private val store: ContentStore) {
         return result
     }
 
-    /** API 한도에 걸렸을 때: 기본 브랜치의 raw 주소로 목차·동의어는 늘, 답변은 아직 없는 것만 받는다 */
+    /** API 한도에 걸렸을 때: 기본 브랜치의 raw 주소로 목차·동의어·발송 기록은 늘, 답변은 아직 없는 것만 받는다 */
     private suspend fun syncFromRawBranch(onProgress: (Int, Int) -> Unit): Result {
-        val indexPaths = AREAS.flatMap { listOf("${it.dir}/toc.md", "${it.dir}/toc-category.md") } + Source.SYNONYMS_PATH
+        val indexPaths = AREAS.flatMap { listOf("${it.dir}/toc.md", "${it.dir}/toc-category.md") } +
+            Source.SYNONYMS_PATH + Progress.PATH
         val index = download(indexPaths, ref = Source.BRANCH, expected = null, onProgress = { _, _ -> })
         val ids = AREAS.flatMap { area ->
             val toc = index["${area.dir}/toc.md"]?.toString(Charsets.UTF_8).orEmpty()
@@ -135,6 +136,13 @@ class ContentSync(private val store: ContentStore) {
     }
 
     companion object {
+        /**
+         * 받는 파일 종류(Source.isTracked)의 판. 받는 파일을 늘리면 1 올린다.
+         * 예전 판으로 맞춘 기기는 커밋이 그대로여도 파일을 다시 비교해 새로 받는 파일을 받는다.
+         * 1: 목차·답변·동의어, 2: 발송 기록(progress.json)을 더함
+         */
+        const val TRACKED_VERSION = 2
+
         private val API_HEADERS = mapOf(
             "Accept" to "application/vnd.github+json",
             "X-GitHub-Api-Version" to "2022-11-28",
