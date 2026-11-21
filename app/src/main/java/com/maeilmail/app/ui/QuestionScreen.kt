@@ -2,32 +2,18 @@ package com.maeilmail.app.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -36,23 +22,29 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.maeilmail.app.data.Library
 import com.maeilmail.app.data.Question
 import com.maeilmail.app.data.areaOf
 import com.maeilmail.app.ui.theme.AppTheme
-import com.maeilmail.app.ui.theme.Mono
+import com.maeilmail.app.ui.theme.Radius
+import com.maeilmail.app.ui.theme.TextStyles
 
 /**
- * 질문 화면: 답변을 읽는다 (이해도·메모는 뒤 단계에서 더한다).
+ * 질문 화면: 답변을 한 장의 문서로 읽는다 (이해도·메모는 뒤 단계에서 더한다).
+ * 위는 경로(어디서 왔는지 / 질문 번호), 아래는 웹 문서 꼬리처럼 이전·다음 질문의 제목을 보인다.
+ *
+ * origin: 어디서 열었는지 (경로에 보일 이름. 예: 질문 목록, 오늘)
  * order: 이전·다음으로 넘길 순서. 질문 목록에서 열었으면 그 목록에 보이던 순서다.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QuestionScreen(
     state: Library.State,
     id: String,
+    origin: String,
     order: List<String>,
     onNavigate: (id: String) -> Unit,
     onBack: () -> Unit,
@@ -69,32 +61,28 @@ fun QuestionScreen(
     }
 
     val index = order.indexOf(id)
-    val prev = order.getOrNull(index - 1)
-    val next = order.getOrNull(index + 1)
+    val prev = order.getOrNull(index - 1)?.let { state.catalog.question(it) }
+    val next = order.getOrNull(index + 1)?.let { state.catalog.question(it) }
 
-    Column(
-        Modifier
-            .fillMaxSize()
-            .background(colors.bgPaper),
-    ) {
-        TopAppBar(
-            title = { Text(id.uppercase(), fontFamily = Mono, fontSize = 16.sp, color = colors.textMain) },
-            navigationIcon = {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "질문 목록으로", tint = colors.textMain)
+    Column(Modifier.fillMaxSize().background(colors.bgCanvas)) {
+        TopNav(
+            current = id.uppercase(),
+            parent = origin,
+            onBack = onBack,
+            trailing = {
+                if (order.size > 1 && index >= 0) {
+                    Text("${index + 1} / ${order.size}", style = TextStyles.num, color = colors.textMuted)
                 }
             },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.bgPaper),
         )
-        HorizontalDivider(color = colors.rule)
 
-        Box(Modifier.weight(1f).fillMaxWidth()) {
+        Box(Modifier.weight(1f).fillMaxWidth().background(colors.bgPaper)) {
             val shown = loaded
             val shownQuestion = shown?.let { state.catalog.question(it.first) }
             when {
                 question == null -> Missing("이 질문을 찾지 못했어요", "목차에서 빠졌을 수 있어요.")
                 shown == null || shownQuestion == null -> Unit
-                shown.second.isEmpty() -> Missing("답변을 아직 받지 못했어요", "인터넷에 연결된 뒤 질문 목록을 당겨서 새로고침해 주세요.")
+                shown.second.isEmpty() -> Missing("답변을 아직 받지 못했어요", "인터넷에 연결된 뒤 다시 받아 주세요.")
                 else -> MarkdownView(
                     key = shownQuestion.id,
                     meta = metaOf(shownQuestion),
@@ -106,29 +94,54 @@ fun QuestionScreen(
         }
 
         if (order.size > 1 && index >= 0) {
-            HorizontalDivider(color = colors.rule)
             Row(
                 Modifier
                     .fillMaxWidth()
+                    .background(colors.bgCanvas)
                     .navigationBarsPadding()
-                    .padding(horizontal = 4.dp, vertical = 2.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
             ) {
-                TextButton(onClick = { prev?.let(onNavigate) }, enabled = prev != null) {
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = null)
-                    Text("이전")
-                }
-                Spacer(Modifier.weight(1f))
-                Text("${index + 1} / ${order.size}", style = MaterialTheme.typography.bodySmall, color = colors.textMuted)
-                Spacer(Modifier.weight(1f))
-                TextButton(onClick = { next?.let(onNavigate) }, enabled = next != null) {
-                    Text("다음")
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
-                }
+                PageLink(prev, isNext = false, onClick = onNavigate, modifier = Modifier.weight(1f))
+                PageLink(next, isNext = true, onClick = onNavigate, modifier = Modifier.weight(1f))
             }
         } else {
-            Spacer(Modifier.navigationBarsPadding())
+            Spacer(Modifier.fillMaxWidth().background(colors.bgCanvas).navigationBarsPadding())
         }
+    }
+}
+
+/** 이전·다음 질문 (웹 .page-nav-card): 작은 안내 글자 아래에 질문 제목 한 줄. 없으면 자리만 비운다 */
+@Composable
+private fun PageLink(target: Question?, isNext: Boolean, onClick: (String) -> Unit, modifier: Modifier = Modifier) {
+    val colors = AppTheme.colors
+    if (target == null) {
+        Spacer(modifier)
+        return
+    }
+    val align = if (isNext) TextAlign.End else TextAlign.Start
+    Column(
+        modifier
+            .clip(Radius.control)
+            .clickable(onClickLabel = if (isNext) "다음 질문" else "이전 질문") { onClick(target.id) }
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        horizontalAlignment = if (isNext) Alignment.End else Alignment.Start,
+    ) {
+        Text(
+            if (isNext) "다음 질문 →" else "← 이전 질문",
+            style = TextStyles.num,
+            color = colors.textMuted,
+            textAlign = align,
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            target.title,
+            style = TextStyles.button,
+            color = colors.textMain,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = align,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 
@@ -146,10 +159,10 @@ private fun Missing(title: String, hint: String) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(title, style = MaterialTheme.typography.titleMedium, color = colors.textMain)
+        Text(title, style = TextStyles.rowTitle, color = colors.textMain)
         Spacer(Modifier.height(6.dp))
-        Text(hint, style = MaterialTheme.typography.bodyMedium, color = colors.textMuted)
+        Text(hint, style = TextStyles.small, color = colors.textMuted, textAlign = TextAlign.Center)
         Spacer(Modifier.height(16.dp))
-        OutlinedButton(onClick = Library::syncNow) { Text("지금 받기") }
+        Btn("지금 받기", onClick = Library::syncNow, kind = BtnKind.Soft)
     }
 }

@@ -13,14 +13,18 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 
 /**
  * 웹 서비스 base.css의 색 변수를 그대로 옮겼다 (라이트 :root, 다크 [data-theme="dark"]).
  * 이름도 웹과 맞춰 두어 웹에서 색을 바꾸면 같은 이름을 찾아 고친다.
+ *
+ * 쓰임은 웹과 같다: 캔버스(bgCanvas)는 책상, 그 위의 지면(bgPaper)이 문서다.
+ * 상단 바·아래 탭은 캔버스에, 내용은 지면에 둔다.
  */
 @Immutable
 data class AppColors(
@@ -95,33 +99,85 @@ object AppTheme {
     val colors: AppColors @Composable get() = LocalAppColors.current
 }
 
-/** 웹의 --radius(4px)와 같은 모서리 */
+/**
+ * 모서리: 웹 base.css와 같은 값. 웹은 알약·원 모양을 쓰지 않고 거의 각진 모서리로 문서 느낌을 낸다.
+ * - control: 버튼·입력칸·메뉴·창·토스트 (--radius 4px)
+ * - small: 메뉴 항목·작은 표시 (2px)
+ * - dot: 학습 수준 점·로고 점·진행 막대 (1px)
+ */
 object Radius {
     val control = RoundedCornerShape(4.dp)
-    val sheet = RoundedCornerShape(8.dp)
+    val small = RoundedCornerShape(2.dp)
+    val dot = RoundedCornerShape(1.dp)
 }
 
-val Mono = FontFamily.Monospace
-
-private val typography = Typography().let { t ->
-    t.copy(
-        headlineSmall = TextStyle(fontSize = 22.sp, lineHeight = 30.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.3).sp),
-        titleLarge = TextStyle(fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.2).sp),
-        titleMedium = TextStyle(fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.SemiBold),
-        titleSmall = TextStyle(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold),
-        bodyLarge = TextStyle(fontSize = 15.5.sp, lineHeight = 24.sp),
-        bodyMedium = TextStyle(fontSize = 14.sp, lineHeight = 20.sp),
-        bodySmall = TextStyle(fontSize = 12.5.sp, lineHeight = 18.sp),
-        labelLarge = TextStyle(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold),
-        labelMedium = TextStyle(fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold),
-        labelSmall = TextStyle(fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight.Medium),
+/**
+ * 웹의 글자 단계. 크기는 웹의 좁은 화면 값을 따르고, 이름은 웹 클래스에서 따왔다.
+ * 웹처럼 글자 사이를 -0.015em 좁히고, 줄 높이는 CSS처럼 위아래로 고르게 나눈다.
+ */
+object TextStyles {
+    private val base = TextStyle(
+        letterSpacing = (-0.015).em,
+        lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.None),
     )
+
+    /** 상단 바의 서비스 이름 (.nav-brand) */
+    val navBrand = base.copy(fontSize = 13.5.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
+
+    /** 상단 바의 경로 (.nav-link. 지금 화면 .nav-current는 굵게 쓴다) */
+    val nav = base.copy(fontSize = 13.5.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium, fontFeatureSettings = "tnum")
+
+    /** 문서 머리의 분류·날짜 (.doc-meta) */
+    val meta = base.copy(fontSize = 12.5.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.01.em)
+
+    /** 문서 제목 (h1, 좁은 화면 23px) */
+    val h1 = base.copy(fontSize = 23.sp, lineHeight = 33.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.025).em)
+
+    /** 구분 제목 (.list-divider) */
+    val divider = base.copy(fontSize = 13.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
+
+    /** 목록 행의 질문 제목 (.q-title) */
+    val rowTitle = base.copy(fontSize = 15.sp, lineHeight = 24.sp, fontWeight = FontWeight.SemiBold)
+
+    /** 번호·개수처럼 자릿수를 맞추는 작은 글자 (.q-num, .list-head) */
+    val num = base.copy(fontSize = 12.5.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold, fontFeatureSettings = "tnum")
+
+    /** 보통 글 (설정 항목, 안내) */
+    val body = base.copy(fontSize = 15.sp, lineHeight = 24.sp)
+
+    /** 작은 안내·분류 (.q-meta, .progress-text) */
+    val small = base.copy(fontSize = 12.5.sp, lineHeight = 19.sp)
+
+    /** 버튼 (.btn. 손가락으로 누르므로 웹의 13px보다 조금 크게) */
+    val button = base.copy(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold)
+
+    /** 토스트 (.toast) */
+    val toast = base.copy(fontSize = 13.5.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold)
+
+    /** 창 제목 (.confirm-dialog h2) */
+    val dialogTitle = base.copy(fontSize = 18.sp, lineHeight = 26.sp, fontWeight = FontWeight.Bold)
+
+    /** Material 컴포넌트(펼침 메뉴, 시각 입력 등)가 쓰는 글자 */
+    internal val material = Typography().let { t ->
+        t.copy(
+            headlineSmall = h1,
+            titleLarge = dialogTitle,
+            titleMedium = base.copy(fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.SemiBold),
+            titleSmall = base.copy(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold),
+            bodyLarge = body,
+            bodyMedium = base.copy(fontSize = 14.sp, lineHeight = 22.sp),
+            bodySmall = small,
+            labelLarge = button,
+            labelMedium = base.copy(fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold),
+            labelSmall = base.copy(fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight.Medium),
+        )
+    }
 }
 
 @Composable
 fun AppTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
     val c = if (darkTheme) Dark else Light
-    // Material 컴포넌트(새로고침 표시, 메뉴, 스낵바 등)도 웹 색을 쓰도록 맞춘다. 동적 색상(Material You)은 쓰지 않는다
+    // Material 컴포넌트(메뉴, 시각 입력 등)도 웹 색을 쓰도록 맞춘다. 동적 색상(Material You)은 쓰지 않는다
     val scheme = (if (darkTheme) darkColorScheme() else lightColorScheme()).copy(
         primary = c.primary, onPrimary = c.primaryInk,
         primaryContainer = c.primaryLight, onPrimaryContainer = c.primary,
@@ -130,7 +186,7 @@ fun AppTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable ()
         surface = c.bgPaper, onSurface = c.textMain,
         surfaceVariant = c.bgSubtle, onSurfaceVariant = c.textMuted,
         surfaceContainer = c.bgPaper, surfaceContainerLow = c.bgPaper,
-        surfaceContainerHigh = c.bgSubtle, surfaceContainerHighest = c.bgHover,
+        surfaceContainerHigh = c.bgPaper, surfaceContainerHighest = c.bgHover,
         inverseSurface = c.textMain, inverseOnSurface = c.bgPaper, inversePrimary = c.primary,
         outline = c.ruleStrong, outlineVariant = c.rule,
         error = c.danger, errorContainer = c.dangerLight,
@@ -138,8 +194,15 @@ fun AppTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable ()
     CompositionLocalProvider(LocalAppColors provides c) {
         MaterialTheme(
             colorScheme = scheme,
-            typography = typography,
-            shapes = Shapes(extraSmall = Radius.control, small = Radius.control, medium = Radius.sheet, large = Radius.sheet),
+            typography = TextStyles.material,
+            // Material의 모서리 단계를 모두 웹의 4px로 둔다 (메뉴·창·입력칸이 이 값을 쓴다)
+            shapes = Shapes(
+                extraSmall = Radius.control,
+                small = Radius.control,
+                medium = Radius.control,
+                large = Radius.control,
+                extraLarge = Radius.control,
+            ),
             content = content,
         )
     }
