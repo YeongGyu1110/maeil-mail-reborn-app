@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- 웹 서비스의 질문 화면(questions/index.html)과 같은 라이브러리·버전으로 그린다. lib/의 파일은 웹의 integrity 값으로 검사해 넣었다 -->
+  <script src="lib/marked.min.js"></script>
+  <script src="lib/prism.min.js"></script>
+  <script src="lib/prism-javascript.min.js"></script>
+  <script src="lib/prism-typescript.min.js"></script>
+  <!-- jsx는 javascript 뒤, tsx는 jsx와 typescript 뒤에 와야 한다 -->
+  <script src="lib/prism-jsx.min.js"></script>
+  <script src="lib/prism-tsx.min.js"></script>
+  <script src="lib/prism-json.min.js"></script>
+  <script src="lib/prism-bash.min.js"></script>
+  <script src="lib/prism-graphql.min.js"></script>
+  <script src="lib/prism-sql.min.js"></script>
+  <script src="lib/prism-java.min.js"></script>
+  <script src="lib/prism-yaml.min.js"></script>
+  <script src="lib/prism-sass.min.js"></script>
+  <link rel="stylesheet" href="viewer.css">
+</head>
+<body>
+  <header class="doc-header">
+    <div id="meta" class="doc-meta"></div>
+    <h1 id="title"></h1>
+  </header>
+  <main id="content"></main>
+  <script src="viewer.js"></script>
+</body>
+</html>
