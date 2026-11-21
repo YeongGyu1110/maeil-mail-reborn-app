@@ -4,3 +4,6 @@ gradlew text eol=lf
 *.bat text eol=crlf
 *.jar binary
 *.png binary
+
+# 웹과 같은 integrity 값을 유지하도록, 넣어 둔 라이브러리 파일은 줄 끝을 바꾸지 않는다
+app/src/main/assets/viewer/lib/** -text
