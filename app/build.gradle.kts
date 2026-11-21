@@ -13,8 +13,8 @@ android {
         applicationId = "com.maeilmail.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
     }
 
     buildTypes {
@@ -30,6 +30,8 @@ android {
     }
     buildFeatures {
         compose = true
+        // 설정 화면에 앱 버전을 보인다
+        buildConfig = true
     }
 }
 
@@ -39,5 +41,6 @@ dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.work.runtime.ktx)
     testImplementation(libs.junit)
 }
