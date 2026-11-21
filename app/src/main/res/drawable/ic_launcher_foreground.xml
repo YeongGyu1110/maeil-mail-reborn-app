@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 임시 아이콘: 편지 봉투. 108dp 캔버스의 가운데 66dp가 보인다 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.5"
+        android:strokeLineJoin="round"
+        android:pathData="M36,40 h36 a3,3 0 0 1 3,3 v22 a3,3 0 0 1 -3,3 h-36 a3,3 0 0 1 -3,-3 v-22 a3,3 0 0 1 3,-3 z" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M35,43 L54,56 L73,43" />
+</vector>
