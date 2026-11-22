@@ -2,8 +2,8 @@
 <resources>
     <!-- 앱 화면 바탕 (ui/theme/Theme.kt의 bgCanvas, 웹 base.css의 bg-canvas 변수). 창 배경에 써서 첫 화면 전에 흰 화면이 번쩍이지 않게 한다 -->
     <color name="app_background">#E9ECEF</color>
-    <!-- 임시 아이콘 바탕: 웹의 primary 변수 (아이콘은 5단계에서 새로 정한다) -->
-    <color name="ic_launcher_background">#007D53</color>
+    <!-- 앱 아이콘 바탕: 웹의 지면색 (bg-paper 변수) -->
+    <color name="ic_launcher_background">#FDFDFD</color>
     <!-- 위젯: 웹 base.css 색 변수 (라이트) -->
     <color name="widget_paper">#FDFDFD</color>
     <color name="widget_rule">#E1E5E9</color>
