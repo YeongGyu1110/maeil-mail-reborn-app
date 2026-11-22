@@ -4,4 +4,10 @@
     <color name="app_background">#E9ECEF</color>
     <!-- 임시 아이콘 바탕: 웹의 primary 변수 (아이콘은 5단계에서 새로 정한다) -->
     <color name="ic_launcher_background">#007D53</color>
+    <!-- 위젯: 웹 base.css 색 변수 (라이트) -->
+    <color name="widget_paper">#FDFDFD</color>
+    <color name="widget_rule">#E1E5E9</color>
+    <color name="widget_text_main">#14171A</color>
+    <color name="widget_text_muted">#5F6974</color>
+    <color name="widget_primary">#007D53</color>
 </resources>

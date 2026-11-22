@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">매일메일</string>
+    <string name="widget_label">오늘의 질문</string>
+    <string name="widget_description">오늘의 질문 번호와 제목. 알림 시각 전에는 보여주지 않아요</string>
+    <string name="widget_preview_title">클로저에 대해서 설명해주세요.</string>
+    <string name="widget_preview_sub">JavaScript 기초와 런타임</string>
 </resources>

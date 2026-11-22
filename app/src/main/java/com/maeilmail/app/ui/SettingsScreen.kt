@@ -1,6 +1,8 @@
 package com.maeilmail.app.ui
 
 import android.annotation.SuppressLint
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings as AndroidSettings
@@ -54,6 +56,7 @@ import com.maeilmail.app.BuildConfig
 import com.maeilmail.app.data.Library
 import com.maeilmail.app.data.Settings
 import com.maeilmail.app.reminder.Reminders
+import com.maeilmail.app.widget.TodayWidgetProvider
 import com.maeilmail.app.ui.theme.AppTheme
 import com.maeilmail.app.ui.theme.Radius
 import com.maeilmail.app.ui.theme.TextStyles
@@ -173,6 +176,17 @@ fun SettingsScreen(state: Library.State) {
             Spacer(Modifier.height(36.dp))
             DividerHead("앱")
             Spacer(Modifier.height(4.dp))
+            // 홈 화면에 오늘의 질문 위젯을 놓는다 (시스템이 놓을지 묻는다). 런처가 지원하지 않으면 감춘다
+            val widgets = remember { AppWidgetManager.getInstance(context) }
+            if (widgets.isRequestPinAppWidgetSupported) {
+                InfoRow(
+                    "홈 화면 위젯",
+                    "놓기",
+                    sub = "오늘의 질문 번호와 제목을 홈 화면에 보여요",
+                    onClick = { widgets.requestPinAppWidget(ComponentName(context, TodayWidgetProvider::class.java), null, null) },
+                )
+                RowRule()
+            }
             InfoRow("버전", BuildConfig.VERSION_NAME)
         }
     }

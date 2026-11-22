@@ -18,6 +18,7 @@ import com.maeilmail.app.data.KST
 import com.maeilmail.app.data.Library
 import com.maeilmail.app.data.Progress
 import com.maeilmail.app.data.Settings
+import com.maeilmail.app.widget.TodayWidget
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -62,9 +63,13 @@ object Reminders {
 
     // ------------------------------------------------------------ 알람 예약
 
-    /** 설정과 받아 둔 발송 기록에 맞춰 다음 알람을 건다 (꺼져 있거나 알릴 날이 없으면 취소). 여러 번 불러도 안전 */
+    /**
+     * 설정과 받아 둔 발송 기록에 맞춰 다음 알람을 건다 (꺼져 있거나 알릴 날이 없으면 취소). 여러 번 불러도 안전.
+     * 발송 기록·알림 시각·알린 날이 바뀔 때마다 불리므로, 같은 것을 보여주는 홈 화면 위젯도 여기서 다시 그린다.
+     */
     fun schedule(context: Context) {
         val ctx = context.applicationContext
+        runCatching { TodayWidget.refresh(ctx) }
         val settings = Settings.get(ctx)
         val notify = settings.notify.value
         val am = ctx.getSystemService(AlarmManager::class.java)

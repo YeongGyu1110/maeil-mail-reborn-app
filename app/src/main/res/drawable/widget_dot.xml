@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 로고 점: 웹 .brand-dot (초록 각진 점, 모서리 1dp) -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/widget_primary" />
+    <corners android:radius="1dp" />
+</shape>
