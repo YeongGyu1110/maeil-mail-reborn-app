@@ -4,6 +4,10 @@
     <color name="app_background">#E9ECEF</color>
     <!-- 앱 아이콘 바탕: 웹의 지면색 (bg-paper 변수) -->
     <color name="ic_launcher_background">#FDFDFD</color>
+    <!-- 시작 화면 아이콘: 앱 아이콘과 같은 색 (라이트) -->
+    <color name="splash_dot">#007D53</color>
+    <color name="splash_title">#14171A</color>
+    <color name="splash_sub">#8A939D</color>
     <!-- 위젯: 웹 base.css 색 변수 (라이트) -->
     <color name="widget_paper">#FDFDFD</color>
     <color name="widget_rule">#E1E5E9</color>

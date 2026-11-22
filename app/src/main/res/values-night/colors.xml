@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="app_background">#111113</color>
+    <!-- 시작 화면 아이콘 (다크): 어두운 바탕에서 보이도록 웹 다크 모드 색 -->
+    <color name="splash_dot">#00C47D</color>
+    <color name="splash_title">#F0F2F5</color>
+    <color name="splash_sub">#6C727B</color>
     <!-- 위젯: 웹 base.css 색 변수 (다크) -->
     <color name="widget_paper">#1A1A1C</color>
     <color name="widget_rule">#2C2C31</color>

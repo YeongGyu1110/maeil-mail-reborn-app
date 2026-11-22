@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 앱 시작 화면(안드로이드 12 이상)의 움직이는 아이콘: 초록 점이 튀어나오고, 제목 줄과 둘째 줄이 차례로 그어진다.
+     앱 아이콘과 같은 모양이지만 색은 splash_* 색(다크 모드에서 밝은 색)을 써서 어두운 바탕에서도 보이게 한다 -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector
+            android:width="108dp"
+            android:height="108dp"
+            android:viewportWidth="108"
+            android:viewportHeight="108">
+            <group
+                android:name="dot"
+                android:pivotX="39"
+                android:pivotY="39"
+                android:scaleX="0"
+                android:scaleY="0">
+                <path
+                    android:fillColor="@color/splash_dot"
+                    android:pathData="M32,30h14a2,2 0 0 1 2,2v14a2,2 0 0 1 -2,2h-14a2,2 0 0 1 -2,-2v-14a2,2 0 0 1 2,-2z" />
+            </group>
+            <group
+                android:name="title"
+                android:pivotX="30"
+                android:scaleX="0">
+                <path
+                    android:fillColor="@color/splash_title"
+                    android:pathData="M31,58h46a1,1 0 0 1 1,1v4a1,1 0 0 1 -1,1h-46a1,1 0 0 1 -1,-1v-4a1,1 0 0 1 1,-1z" />
+            </group>
+            <group
+                android:name="sub"
+                android:pivotX="30"
+                android:scaleX="0">
+                <path
+                    android:fillColor="@color/splash_sub"
+                    android:pathData="M31,70h30a1,1 0 0 1 1,1v4a1,1 0 0 1 -1,1h-30a1,1 0 0 1 -1,-1v-4a1,1 0 0 1 1,-1z" />
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <target android:name="dot">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator
+                    android:duration="320"
+                    android:interpolator="@android:interpolator/overshoot"
+                    android:propertyName="scaleX"
+                    android:valueFrom="0"
+                    android:valueTo="1"
+                    android:valueType="floatType" />
+                <objectAnimator
+                    android:duration="320"
+                    android:interpolator="@android:interpolator/overshoot"
+                    android:propertyName="scaleY"
+                    android:valueFrom="0"
+                    android:valueTo="1"
+                    android:valueType="floatType" />
+            </set>
+        </aapt:attr>
+    </target>
+
+    <target android:name="title">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="340"
+                android:interpolator="@android:interpolator/fast_out_slow_in"
+                android:propertyName="scaleX"
+                android:startOffset="220"
+                android:valueFrom="0"
+                android:valueTo="1"
+                android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+
+    <target android:name="sub">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="300"
+                android:interpolator="@android:interpolator/fast_out_slow_in"
+                android:propertyName="scaleX"
+                android:startOffset="400"
+                android:valueFrom="0"
+                android:valueTo="1"
+                android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+</animated-vector>
