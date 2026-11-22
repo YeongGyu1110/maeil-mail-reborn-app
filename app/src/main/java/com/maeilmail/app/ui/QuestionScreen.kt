@@ -13,9 +13,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -26,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.maeilmail.app.account.Records
 import com.maeilmail.app.data.Library
 import com.maeilmail.app.data.Question
 import com.maeilmail.app.data.areaOf
@@ -51,6 +54,7 @@ fun QuestionScreen(
 ) {
     val colors = AppTheme.colors
     val question = state.catalog.question(id)
+    val records by Records.state.collectAsState()
     BackHandler(onBack = onBack)
 
     // 읽어 둔 답변 본문 (질문 ID, 본문). 질문이 바뀌거나 새로 받으면 다시 읽는다. 본문이 ""이면 받아 둔 파일이 없다.
@@ -73,6 +77,15 @@ fun QuestionScreen(
                 if (order.size > 1 && index >= 0) {
                     Text("${index + 1} / ${order.size}", style = TextStyles.num, color = colors.textMuted)
                 }
+                // 별표 (웹은 문서 머리 오른쪽 위에 둔다)
+                if (records.signedIn && question != null) {
+                    Spacer(Modifier.width(4.dp))
+                    StarButton(
+                        starred = records.item(id).starred,
+                        onToggle = { Records.setStarred(id, !records.item(id).starred) },
+                        size = 40.dp,
+                    )
+                }
             },
         )
 
@@ -89,6 +102,8 @@ fun QuestionScreen(
                     title = shownQuestion.title,
                     markdown = shown.second,
                     modifier = Modifier.fillMaxSize(),
+                    level = if (records.signedIn) records.level(shownQuestion.id) else null,
+                    onLevel = { Records.setLevel(shownQuestion.id, it) },
                 )
             }
         }

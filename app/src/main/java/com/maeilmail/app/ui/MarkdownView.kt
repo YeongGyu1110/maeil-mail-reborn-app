@@ -18,12 +18,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.viewinterop.AndroidView
+import com.maeilmail.app.account.Records
 import com.maeilmail.app.ui.theme.AppTheme
 import org.json.JSONObject
 
@@ -40,11 +42,16 @@ fun MarkdownView(
     title: String,
     markdown: String,
     modifier: Modifier = Modifier,
+    /** 이 질문의 이해도. null이면 학습 기록 칸을 감춘다 (로그인하지 않음) */
+    level: Records.Level? = null,
+    /** 본문 끝의 이해도 버튼을 눌렀을 때 */
+    onLevel: (Records.Level) -> Unit = {},
 ) {
     val context = LocalContext.current
     val colors = AppTheme.colors
     val fontScale = LocalDensity.current.fontScale
     var pageReady by remember { mutableStateOf(false) }
+    val currentOnLevel by rememberUpdatedState(onLevel)
 
     val webView = remember {
         WebView(context).apply {
@@ -55,7 +62,7 @@ fun MarkdownView(
             settings.textZoom = (fontScale * 100).toInt()
             isVerticalScrollBarEnabled = false
             setBackgroundColor(colors.bgPaper.toArgb())
-            addJavascriptInterface(Bridge(context), "MaeilApp")
+            addJavascriptInterface(Bridge(context) { key -> currentOnLevel(Records.Level.of(key)) }, "MaeilApp")
             webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView, url: String) {
                     pageReady = true
@@ -92,6 +99,13 @@ fun MarkdownView(
         webView.evaluateJavascript("render($payload)", null)
     }
 
+    // 이해도는 본문을 다시 그리지 않고 학습 기록 칸만 바꾼다 (웹에서 바뀐 기록을 받아 와도 읽던 자리가 그대로다)
+    LaunchedEffect(pageReady, key, level) {
+        if (!pageReady) return@LaunchedEffect
+        val state = if (level == null) "null" else JSONObject().put("signedIn", true).put("level", level.key ?: "new").toString()
+        webView.evaluateJavascript("setStudy($state)", null)
+    }
+
     LaunchedEffect(pageReady, colors.isDark) {
         if (!pageReady) return@LaunchedEffect
         webView.setBackgroundColor(colors.bgPaper.toArgb())
@@ -102,7 +116,15 @@ fun MarkdownView(
 }
 
 /** 본문 스크립트가 부르는 앱 기능 */
-private class Bridge(private val context: Context) {
+private class Bridge(private val context: Context, private val onLevel: (String?) -> Unit) {
+    private val main = android.os.Handler(context.mainLooper)
+
+    /** 이해도 버튼: "new" | "review" | "done" */
+    @JavascriptInterface
+    fun setLevel(level: String) {
+        main.post { onLevel(level.takeIf { it != "new" }) }
+    }
+
     @JavascriptInterface
     fun copy(text: String) {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager

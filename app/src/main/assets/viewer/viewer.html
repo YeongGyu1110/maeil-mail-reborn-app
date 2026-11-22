@@ -24,8 +24,24 @@
   <header class="doc-header">
     <div id="meta" class="doc-meta"></div>
     <h1 id="title"></h1>
+    <!-- 지금 학습 상태: 기록한 것이 있을 때만 보인다. 누르면 학습 기록으로 내려간다 (웹 .doc-status) -->
+    <div id="doc-status" class="doc-status" hidden>
+      <a id="status-level" class="level-badge" href="#study"></a>
+    </div>
   </header>
   <main id="content"></main>
+  <!-- 학습 기록: 답을 읽은 뒤 이해도를 표시한다 (웹 .study). 로그인했을 때만 보인다 -->
+  <section id="study" class="study" hidden>
+    <h2 class="study-title">학습 기록</h2>
+    <div class="study-block">
+      <h3 id="level-heading" class="study-block-title">이해도</h3>
+      <div id="level-control" class="level-control" role="radiogroup" aria-labelledby="level-heading">
+        <button type="button" class="level-option" role="radio" data-level="new"><span class="dot"></span>미학습</button>
+        <button type="button" class="level-option" role="radio" data-level="review"><span class="dot dot-review"></span>복습 필요</button>
+        <button type="button" class="level-option" role="radio" data-level="done"><span class="dot dot-done"></span>완벽 이해</button>
+      </div>
+    </div>
+  </section>
   <script src="viewer.js"></script>
 </body>
 </html>

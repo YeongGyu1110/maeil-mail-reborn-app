@@ -2,6 +2,7 @@
    글자·여백은 웹 질문 화면(questions/index.html)의 좁은 화면 값을 따른다. */
 :root {
   --bg-paper: #fdfdfd;
+  --bg-subtle: #f3f4f6;
   --bg-hover: #e5e8eb;
   --rule: #e1e5e9;
   --rule-strong: #8a939d;
@@ -9,6 +10,10 @@
   --text-sub: #333d4b;
   --text-muted: #5f6974;
   --primary: #007d53;
+  --primary-light: #e3f3ec;
+  --review: #a35c06;
+  --review-bar: #e8960c;
+  --review-light: #fbf0de;
 
   --code-block-bg: #f3f5f7;
   --code-block-text: #1e293b;
@@ -30,6 +35,7 @@
 
 [data-theme="dark"] {
   --bg-paper: #1a1a1c;
+  --bg-subtle: #212124;
   --bg-hover: #29292d;
   --rule: #2c2c31;
   --rule-strong: #6c727b;
@@ -37,6 +43,10 @@
   --text-sub: #c4c8cf;
   --text-muted: #8a919b;
   --primary: #00c47d;
+  --primary-light: rgba(0, 196, 125, 0.13);
+  --review: #fbbf24;
+  --review-bar: #f5a524;
+  --review-light: rgba(251, 191, 36, 0.13);
 
   --code-block-bg: #141416;
   --code-block-text: #e2e8f0;
@@ -98,6 +108,119 @@ h1#title {
   word-break: keep-all;
   overflow-wrap: break-word;
 }
+
+/* ---------- 학습 수준: 각진 점 + 이름 (웹 base.css .dot, .level-badge) ---------- */
+.dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 1px;
+  flex-shrink: 0;
+  background: var(--rule-strong);
+}
+
+.dot-review { background: var(--review-bar); }
+.dot-done { background: var(--primary); }
+
+.level-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 4px;
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.level-badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 1px;
+  background: var(--rule-strong);
+}
+
+.level-badge[data-level="review"] { background: var(--review-light); color: var(--review); }
+.level-badge[data-level="review"]::before { background: var(--review-bar); }
+.level-badge[data-level="done"] { background: var(--primary-light); color: var(--primary); }
+.level-badge[data-level="done"]::before { background: var(--primary); }
+
+/* 문서 머리의 지금 학습 상태 (웹 .doc-status) */
+.doc-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-top: 16px;
+}
+
+/* ---------- 학습 기록: 본문 뒤에 진한 선으로 나눈 문서의 마지막 절 (웹 .study) ---------- */
+.study {
+  margin-top: 48px;
+  padding-top: 28px;
+  border-top: 1px solid var(--rule-strong);
+}
+
+.study-title {
+  margin: 0 0 24px;
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--text-main);
+}
+
+.study-block-title {
+  margin: 0 0 10px;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+/* 이해도: 셋 중 하나를 고르는 분할 버튼. 고른 칸만 종이처럼 떠오르고 수준의 색을 띤다 (웹 .level-control 좁은 화면) */
+.level-control {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  padding: 3px;
+  border-radius: 6px;
+  background: var(--bg-subtle);
+  box-shadow: inset 0 0 0 1px var(--rule);
+}
+
+.level-option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: inherit;
+  white-space: nowrap;
+  transition: background-color 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.level-option:not([aria-checked="true"]) .dot { opacity: 0.55; }
+
+.level-option[aria-checked="true"] {
+  background: var(--bg-paper);
+  color: var(--text-main);
+  box-shadow: 0 1px 2px rgba(20, 23, 26, 0.1), 0 0 0 1px var(--rule);
+}
+
+.level-option[data-level="review"][aria-checked="true"] { color: var(--review); }
+.level-option[data-level="done"][aria-checked="true"] { color: var(--primary); }
 
 /* ---------- 본문 ---------- */
 #content {

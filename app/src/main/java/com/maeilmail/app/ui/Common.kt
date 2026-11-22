@@ -21,9 +21,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -53,6 +55,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.maeilmail.app.account.Records
 import com.maeilmail.app.data.Settings
 import com.maeilmail.app.ui.theme.AppTheme
 import com.maeilmail.app.ui.theme.LineIcons
@@ -383,6 +386,54 @@ fun ConfirmDialog(
                 Btn(confirm, onClick = onConfirm, kind = if (danger) BtnKind.Danger else BtnKind.Primary)
             }
         }
+    }
+}
+
+/** 학습 수준의 색: (면, 글자, 점). 웹 .level-badge의 data-level별 색 */
+@Composable
+fun levelColors(level: Records.Level): Triple<Color, Color, Color> {
+    val c = AppTheme.colors
+    return when (level) {
+        Records.Level.NEW -> Triple(c.bgSubtle, c.textMuted, c.ruleStrong)
+        Records.Level.REVIEW -> Triple(c.reviewLight, c.review, c.reviewBar)
+        Records.Level.DONE -> Triple(c.primaryLight, c.primary, c.primary)
+    }
+}
+
+/** 학습 수준 표시: 각진 점 + 이름 (웹 .level-badge, 높이 24, 모서리 4) */
+@Composable
+fun LevelBadge(level: Records.Level, modifier: Modifier = Modifier) {
+    val (background, text, dot) = levelColors(level)
+    Row(
+        modifier
+            .height(24.dp)
+            .background(background, Radius.control)
+            .padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(6.dp).background(dot, Radius.dot))
+        Spacer(Modifier.width(6.dp))
+        Text(level.label, style = TextStyles.num, color = text)
+    }
+}
+
+/** 별표 버튼 (웹 .star-btn): 누르면 별표하고, 다시 누르면 뗀다. 별표한 질문은 노란 칠한 별 */
+@Composable
+fun StarButton(starred: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier, size: Dp = 36.dp) {
+    val colors = AppTheme.colors
+    Box(
+        modifier
+            .requiredSize(size)
+            .clip(Radius.control)
+            .toggleable(value = starred, role = Role.Checkbox, onValueChange = { onToggle() }),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            if (starred) LineIcons.StarFilled else LineIcons.Star,
+            contentDescription = if (starred) "별표 떼기" else "별표하기",
+            tint = if (starred) colors.star else colors.textMuted,
+            modifier = Modifier.size(17.dp),
+        )
     }
 }
 

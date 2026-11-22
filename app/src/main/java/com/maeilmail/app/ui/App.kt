@@ -37,14 +37,23 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.maeilmail.app.account.Records
 import com.maeilmail.app.data.Library
 import com.maeilmail.app.ui.theme.AppTheme
 import com.maeilmail.app.ui.theme.LineIcons
 import com.maeilmail.app.ui.theme.TextStyles
 
 private val ListFilterSaver: Saver<ListFilter, Any> = listSaver(
-    save = { listOf(it.query, it.category) },
-    restore = { ListFilter(it[0], it[1]) },
+    save = { listOf(it.query, it.category, it.level?.name.orEmpty(), it.starred.toString(), it.received.toString()) },
+    restore = {
+        ListFilter(
+            query = it[0],
+            category = it[1],
+            level = Records.Level.entries.firstOrNull { level -> level.name == it[2] },
+            starred = it[3] == "true",
+            received = it[4] == "true",
+        )
+    },
 )
 
 private enum class Tab(val label: String, val icon: ImageVector) {

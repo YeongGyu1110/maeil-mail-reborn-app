@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -22,7 +24,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.maeilmail.app.account.Records
 import com.maeilmail.app.data.Library
 import com.maeilmail.app.data.Question
 import com.maeilmail.app.data.Settings
@@ -44,6 +51,7 @@ fun HomeScreen(state: Library.State, onOpen: (Question) -> Unit, onOpenSettings:
     val notify by settings.notify.collectAsState()
     val lastNotified by settings.lastNotified.collectAsState()
     val nextAlarm by settings.nextAlarm.collectAsState()
+    val records by Records.state.collectAsState()
 
     // 알림 시각이 지나면 질문이 보이도록 1분마다 시각을 새로 읽는다
     var now by remember { mutableStateOf(Reminders.nowKst()) }
@@ -125,9 +133,17 @@ fun HomeScreen(state: Library.State, onOpen: (Question) -> Unit, onOpenSettings:
                         Spacer(Modifier.height(10.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(question.label, style = TextStyles.num, color = colors.textMuted)
-                            if (question.categoryName.isNotEmpty()) {
-                                Text(" · ${question.categoryName}", style = TextStyles.small, color = colors.textMuted)
-                            }
+                            Text(
+                                if (question.categoryName.isNotEmpty()) " · ${question.categoryName}" else "",
+                                style = TextStyles.small,
+                                color = colors.textMuted,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f),
+                            )
+                            // 이 질문의 학습 수준 (웹 '오늘 받은 질문'처럼 미학습이면 보이지 않는다)
+                            val level = records.level(question.id)
+                            if (records.signedIn && level != Records.Level.NEW) LevelBadge(level)
                         }
                         Spacer(Modifier.height(20.dp))
                         Btn("답변 보기", onClick = { onOpen(question) }, kind = BtnKind.Primary)
@@ -135,6 +151,17 @@ fun HomeScreen(state: Library.State, onOpen: (Question) -> Unit, onOpenSettings:
                 }
                 Spacer(Modifier.height(24.dp))
                 HorizontalDivider(color = colors.ruleStrong)
+            }
+
+            if (records.signedIn && state.catalog.questions.isNotEmpty()) {
+                StudyProgress(
+                    received = progress?.received(
+                        if (revealed) todayId else null,
+                        state.catalog.questions.mapTo(HashSet()) { it.id },
+                    ).orEmpty(),
+                    all = state.catalog.questions.map { it.id },
+                    records = records,
+                )
             }
 
             Spacer(Modifier.height(8.dp))
@@ -148,6 +175,49 @@ fun HomeScreen(state: Library.State, onOpen: (Question) -> Unit, onOpenSettings:
                 onClick = onOpenSettings,
             )
         }
+    }
+}
+
+/**
+ * 학습 진도 (웹 .progress-group): 메일로 받은 질문 가운데 얼마나 익혔는지.
+ * 아직 받지 않은 질문까지 세면 발송 일정만 보여주게 되므로 받은 질문으로 센다 (받은 질문을 모르면 전체로).
+ * 막대는 각진 4dp 띠에 완벽 이해(초록)와 복습 필요(주황)를 이어 칠한다.
+ */
+@Composable
+private fun StudyProgress(received: List<String>, all: List<String>, records: Records.State) {
+    val colors = AppTheme.colors
+    val base = received.ifEmpty { all }
+    val done = base.count { records.level(it) == Records.Level.DONE }
+    val review = base.count { records.level(it) == Records.Level.REVIEW }
+    val ratio = { n: Int -> if (base.isEmpty()) 0f else n.toFloat() / base.size }
+    Column(Modifier.padding(start = PaperPadding, end = PaperPadding, top = 24.dp, bottom = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("학습 진도", style = TextStyles.meta, color = colors.textMuted, modifier = Modifier.weight(1f))
+            Text(
+                "${Math.round(ratio(done) * 100)}%",
+                style = TextStyles.num.copy(fontSize = 13.sp, fontWeight = FontWeight.Bold),
+                color = colors.textMain,
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .height(4.dp)
+                .clip(Radius.dot)
+                .background(colors.bgHover),
+        ) {
+            if (done > 0) Box(Modifier.fillMaxHeight().weight(ratio(done)).background(colors.primary))
+            if (review > 0) Box(Modifier.fillMaxHeight().weight(ratio(review)).background(colors.reviewBar))
+            val rest = 1f - ratio(done) - ratio(review)
+            if (rest > 0f) Spacer(Modifier.weight(rest))
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            if (received.isNotEmpty()) "받은 질문 ${base.size}개 중 ${done}개 완벽 이해" else "${base.size}개 중 ${done}개 완벽 이해",
+            style = TextStyles.small,
+            color = colors.textMuted,
+        )
     }
 }
 

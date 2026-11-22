@@ -38,7 +38,22 @@ object LineIcons {
         "M1 14h6", "M9 8h6", "M17 16h6",
     )
 
-    private fun icon(name: String, vararg paths: String): ImageVector {
+    private const val STAR = "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+
+    /** 별표 (빈 별) */
+    val Star = icon("Star", STAR)
+
+    /** 별표한 질문 (칠한 별) */
+    val StarFilled = icon("StarFilled", STAR, filled = true)
+
+    /** 받은 질문 (웹의 받은 질문 필터 아이콘) */
+    val Inbox = icon(
+        "Inbox",
+        "M22 12h-6l-2 3h-4l-2-3H2",
+        "M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z",
+    )
+
+    private fun icon(name: String, vararg paths: String, filled: Boolean = false): ImageVector {
         val builder = ImageVector.Builder(
             name = name,
             defaultWidth = 24.dp,
@@ -49,7 +64,7 @@ object LineIcons {
         for (d in paths) {
             builder.addPath(
                 pathData = PathParser().parsePathString(d).toNodes(),
-                fill = null,
+                fill = if (filled) SolidColor(Color.Black) else null,
                 stroke = SolidColor(Color.Black),
                 strokeLineWidth = 2f,
                 strokeLineCap = StrokeCap.Round,

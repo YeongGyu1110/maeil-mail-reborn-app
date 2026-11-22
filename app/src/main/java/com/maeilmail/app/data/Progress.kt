@@ -33,6 +33,17 @@ data class Progress(
         return null
     }
 
+    /**
+     * 메일로 받은 질문, 최근에 받은 것부터 (웹 index.html의 receivedIds와 같다).
+     * todayId: 받은 질문에 넣을 오늘 질문. 앱은 알림 시각 전에는 오늘 질문을 보여주지 않으므로, 알림 시각이 지난 뒤에만 넘긴다.
+     * known: 목차에 있는 질문 ID (목차에서 빠진 질문은 뺀다)
+     */
+    fun received(todayId: String?, known: Set<String>): List<String> {
+        val ids = sent.toMutableList()
+        if (todayId != null && todayId !in ids) ids.add(todayId)
+        return ids.filter { it in known }.reversed().distinct()
+    }
+
     /** date보다 뒤의 첫 발송일 (없으면 null) */
     fun nextDateAfter(date: LocalDate): LocalDate? =
         next.keys.map(LocalDate::parse).filter { it.isAfter(date) }.minOrNull()

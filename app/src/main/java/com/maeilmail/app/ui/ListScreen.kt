@@ -11,17 +11,21 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -33,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,39 +46,62 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.maeilmail.app.account.Records
 import com.maeilmail.app.data.AREAS
 import com.maeilmail.app.data.Library
 import com.maeilmail.app.data.Question
+import com.maeilmail.app.data.Settings
+import com.maeilmail.app.reminder.Reminders
 import com.maeilmail.app.ui.theme.AppTheme
 import com.maeilmail.app.ui.theme.LineIcons
 import com.maeilmail.app.ui.theme.Radius
 import com.maeilmail.app.ui.theme.TextStyles
 
-/** 질문 목록의 검색어와 카테고리. 질문을 보고 돌아와도 남도록 위에서 들고 있는다 */
-class ListFilter(query: String = "", category: String = "") {
+/**
+ * 질문 목록의 검색어와 필터. 질문을 보고 돌아와도 남도록 위에서 들고 있는다.
+ * level: 학습 수준 (null이면 전체), starred: 별표한 질문만, received: 받은 질문만 최근에 받은 순서로.
+ */
+class ListFilter(
+    query: String = "",
+    category: String = "",
+    level: Records.Level? = null,
+    starred: Boolean = false,
+    received: Boolean = false,
+) {
     var query by mutableStateOf(query)
     var category by mutableStateOf(category)
-    val active: Boolean get() = query.isNotBlank() || category.isNotEmpty()
+    var level by mutableStateOf(level)
+    var starred by mutableStateOf(starred)
+    var received by mutableStateOf(received)
+    val active: Boolean get() = query.isNotBlank() || category.isNotEmpty() || level != null || starred || received
 
     fun reset() {
         query = ""
         category = ""
+        level = null
+        starred = false
+        received = false
     }
 }
 
 /**
  * 질문 목록: 웹의 좁은 화면 배치를 따른다.
- * 캔버스에는 상단 바와 필터(카테고리)를, 지면(문서)에는 검색창·목록 머리·질문 색인을 둔다.
- * 행을 누르면 질문 화면으로 간다.
+ * 캔버스에는 상단 바와 필터(학습 수준, 받은 질문·별표, 카테고리)를, 지면(문서)에는 검색창·목록 머리·질문 색인을 둔다.
+ * 행을 누르면 질문 화면으로 간다. 로그인하면 행에 학습 수준과 별표가 보이고, 별표는 바로 누를 수 있다.
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ListScreen(
     state: Library.State,
@@ -83,25 +111,77 @@ fun ListScreen(
 ) {
     val colors = AppTheme.colors
     val catalog = state.catalog
+    val records by Records.state.collectAsState()
+    val todayId = rememberRevealedTodayId(state)
+    val received = remember(state.progress, todayId, catalog) {
+        state.progress?.received(todayId, catalog.questions.mapTo(HashSet()) { it.id }).orEmpty()
+    }
+    // 받은 질문이 없어지면 받은 질문 필터를, 로그아웃하면 학습 기록 필터를 푼다
+    if (filter.received && received.isEmpty() && state.progress != null) filter.received = false
+    if (!records.signedIn && (filter.level != null || filter.starred)) {
+        filter.level = null
+        filter.starred = false
+    }
+
     val search = remember(catalog.synonyms) { Library.search() }
     val matcher = remember(search, filter.query) { search.matcher(filter.query) }
-    val visible = remember(catalog, matcher, filter.category) {
-        catalog.questions.filter { q ->
-            (filter.category.isEmpty() || q.category == filter.category) && search.matches(matcher, q)
+    val visible = remember(catalog, matcher, filter.category, filter.level, filter.starred, filter.received, received, records.items) {
+        val base = if (filter.received) received.mapNotNull(catalog::question) else catalog.questions
+        base.filter { q ->
+            (filter.category.isEmpty() || q.category == filter.category) &&
+                (filter.level == null || records.level(q.id) == filter.level) &&
+                (!filter.starred || records.item(q.id).starred) &&
+                search.matches(matcher, q)
         }
     }
     val order = remember(visible) { visible.map { it.id } }
-    val counts = remember(catalog) { catalog.questions.groupingBy { it.category }.eachCount() }
+    val categoryCounts = remember(catalog) { catalog.questions.groupingBy { it.category }.eachCount() }
+    val levelCounts = remember(catalog, records.items) { catalog.questions.groupingBy { records.level(it.id) }.eachCount() }
 
     Column(Modifier.fillMaxSize().background(colors.bgCanvas)) {
         TopNav("질문 목록")
-        CategorySelect(
-            categories = catalog.categories,
-            counts = counts,
-            category = filter.category,
-            onCategory = { filter.category = it },
-            modifier = Modifier.padding(start = PaperPadding, end = PaperPadding, bottom = 12.dp),
-        )
+        Column(
+            Modifier.padding(start = PaperPadding, end = PaperPadding, bottom = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            if (records.signedIn) {
+                LevelStats(
+                    counts = levelCounts,
+                    total = catalog.questions.size,
+                    selected = filter.level,
+                    onSelect = { filter.level = it },
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (received.isNotEmpty()) {
+                    ScopeChip(
+                        icon = LineIcons.Inbox,
+                        label = "받은 질문",
+                        count = received.size,
+                        pressed = filter.received,
+                        onToggle = { filter.received = !filter.received },
+                        activeTint = colors.primary,
+                    )
+                }
+                if (records.signedIn) {
+                    ScopeChip(
+                        icon = if (filter.starred) LineIcons.StarFilled else LineIcons.Star,
+                        label = "별표",
+                        count = records.items.values.count { it.starred },
+                        pressed = filter.starred,
+                        onToggle = { filter.starred = !filter.starred },
+                        activeTint = colors.star,
+                    )
+                }
+                CategorySelect(
+                    categories = catalog.categories,
+                    counts = categoryCounts,
+                    category = filter.category,
+                    onCategory = { filter.category = it },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
 
         Box(Modifier.weight(1f).fillMaxWidth().background(colors.bgPaper)) {
             if (catalog.questions.isEmpty()) {
@@ -111,15 +191,19 @@ fun ListScreen(
                     Spacer(Modifier.height(20.dp))
                     SearchField(filter.query, onChange = { filter.query = it })
                     ListHead(
-                        total = catalog.questions.size,
+                        total = if (filter.received) received.size else catalog.questions.size,
                         shown = visible.size,
+                        received = filter.received,
                         filtered = filter.active,
                         onReset = filter::reset,
                     )
                     val pull = rememberPullToRefreshState()
                     PullToRefreshBox(
                         isRefreshing = state.syncing,
-                        onRefresh = Library::syncNow,
+                        onRefresh = {
+                            Library.syncNow()
+                            Records.refresh(force = true)
+                        },
                         state = pull,
                         modifier = Modifier.weight(1f).fillMaxWidth(),
                         // 둥근 새로고침 표시 대신, 당긴 만큼 차오르는 얇은 막대를 목록 위에 둔다
@@ -133,7 +217,13 @@ fun ListScreen(
                         if (visible.isEmpty()) {
                             EmptyResult(onReset = filter::reset)
                         } else {
-                            QuestionIndex(visible, listState, onOpen = { onOpen(it, order) })
+                            QuestionIndex(
+                                visible = visible,
+                                grouped = !filter.received,
+                                records = records,
+                                listState = listState,
+                                onOpen = { onOpen(it, order) },
+                            )
                         }
                     }
                 }
@@ -150,31 +240,155 @@ fun ListScreen(
     }
 }
 
-/** 질문 색인: 영역마다 구분 제목(목록을 내려도 위에 붙어 있다) 아래에 질문 행을 둔다 */
+/** 지금 볼 수 있는 오늘 질문: 알림 시각이 지났으면 오늘 질문 ID, 아니면 null (알림 전에는 받은 질문에도 넣지 않는다) */
+@Composable
+private fun rememberRevealedTodayId(state: Library.State): String? {
+    val context = LocalContext.current
+    val settings = remember { Settings.get(context) }
+    val notify by settings.notify.collectAsState()
+    val lastNotified by settings.lastNotified.collectAsState()
+    rememberResumeCount() // 앱으로 돌아올 때 시각을 새로 읽는다
+    val now = Reminders.nowKst()
+    val today = now.toLocalDate()
+    val id = state.progress?.questionOn(today) ?: return null
+    return id.takeIf { Reminders.isRevealed(today, now, notify.time, lastNotified) }
+}
+
+/**
+ * 질문 색인. grouped면 영역마다 구분 제목(목록을 내려도 위에 붙어 있다) 아래에 질문 행을 두고,
+ * 아니면(받은 순서로 볼 때) 영역이 섞이므로 구분 제목 없이 한 줄로 둔다 (웹과 같다).
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun QuestionIndex(visible: List<Question>, listState: LazyListState, onOpen: (Question) -> Unit) {
+private fun QuestionIndex(
+    visible: List<Question>,
+    grouped: Boolean,
+    records: Records.State,
+    listState: LazyListState,
+    onOpen: (Question) -> Unit,
+) {
     val colors = AppTheme.colors
     LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-        var firstArea = true
-        for (area in AREAS) {
-            val inArea = visible.filter { it.area == area.prefix }
-            if (inArea.isEmpty()) continue
-            // 앞 영역의 마지막 행과 다음 구분 제목 사이를 띄운다 (웹 .list-divider margin-top)
-            if (!firstArea) item(key = "gap-${area.prefix}") { Spacer(Modifier.height(20.dp)) }
-            firstArea = false
-            stickyHeader(key = "area-${area.prefix}") {
-                DividerHead(
-                    area.name,
-                    count = "${inArea.size}개",
-                    modifier = Modifier.background(colors.bgPaper).padding(top = 12.dp),
-                )
+        if (!grouped) {
+            item { Spacer(Modifier.height(4.dp)) }
+            itemsIndexed(visible, key = { _, q -> q.id }) { i, q ->
+                QuestionRow(q, first = i == 0, records = records, onClick = { onOpen(q) })
             }
-            itemsIndexed(inArea, key = { _, q -> q.id }) { i, q ->
-                QuestionRow(q, first = i == 0, onClick = { onOpen(q) })
+        } else {
+            var firstArea = true
+            for (area in AREAS) {
+                val inArea = visible.filter { it.area == area.prefix }
+                if (inArea.isEmpty()) continue
+                // 앞 영역의 마지막 행과 다음 구분 제목 사이를 띄운다 (웹 .list-divider margin-top)
+                if (!firstArea) item(key = "gap-${area.prefix}") { Spacer(Modifier.height(20.dp)) }
+                firstArea = false
+                stickyHeader(key = "area-${area.prefix}") {
+                    DividerHead(
+                        area.name,
+                        count = "${inArea.size}개",
+                        modifier = Modifier.background(colors.bgPaper).padding(top = 12.dp),
+                    )
+                }
+                itemsIndexed(inArea, key = { _, q -> q.id }) { i, q ->
+                    QuestionRow(q, first = i == 0, records = records, onClick = { onOpen(q) })
+                }
             }
         }
         item { Spacer(Modifier.height(24.dp)) }
+    }
+}
+
+/**
+ * 학습 수준 필터 (웹 좁은 화면의 .stats: 네 칸 격자, 이름 아래에 개수).
+ * 고른 칸만 지면색으로 떠오르고 글자가 굵어진다. 고른 칸을 다시 누르면 전체로 돌아간다.
+ */
+@Composable
+private fun LevelStats(
+    counts: Map<Records.Level, Int>,
+    total: Int,
+    selected: Records.Level?,
+    onSelect: (Records.Level?) -> Unit,
+) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        StatCell("전체", total, dot = null, pressed = selected == null, onClick = { onSelect(null) })
+        for (level in Records.Level.entries) {
+            StatCell(
+                level.label,
+                counts[level] ?: 0,
+                dot = levelColors(level).third,
+                pressed = selected == level,
+                onClick = { onSelect(if (selected == level) null else level) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun RowScope.StatCell(label: String, count: Int, dot: Color?, pressed: Boolean, onClick: () -> Unit) {
+    val colors = AppTheme.colors
+    Column(
+        Modifier
+            .weight(1f)
+            .height(52.dp)
+            .clip(Radius.control)
+            .background(if (pressed) colors.bgPaper else Color.Transparent)
+            .selectable(selected = pressed, role = Role.Tab, onClick = onClick)
+            .padding(horizontal = 8.dp),
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (dot != null) {
+                Box(Modifier.size(7.dp).background(dot, Radius.dot))
+                Spacer(Modifier.width(6.dp))
+            }
+            Text(
+                label,
+                style = TextStyles.small,
+                fontWeight = if (pressed) FontWeight.Bold else FontWeight.Medium,
+                color = if (pressed) colors.textMain else colors.textSub,
+                maxLines = 1,
+            )
+        }
+        Text(
+            "$count",
+            style = TextStyles.body.copy(fontWeight = FontWeight.Bold, fontFeatureSettings = "tnum"),
+            color = colors.textMain,
+        )
+    }
+}
+
+/** 받은 질문·별표처럼 학습 수준과 겹쳐 거르는 범위 (웹 .scope-filter). 켜면 테두리가 생기고 아이콘에 색이 든다 */
+@Composable
+private fun ScopeChip(
+    icon: ImageVector,
+    label: String,
+    count: Int,
+    pressed: Boolean,
+    onToggle: () -> Unit,
+    activeTint: Color,
+) {
+    val colors = AppTheme.colors
+    Row(
+        Modifier
+            .height(40.dp)
+            .clip(Radius.control)
+            .background(colors.bgPaper)
+            .then(if (pressed) Modifier.border(1.dp, colors.textMuted, Radius.control) else Modifier)
+            .toggleable(value = pressed, role = Role.Checkbox, onValueChange = { onToggle() })
+            .padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, contentDescription = null, tint = if (pressed) activeTint else colors.textMuted, modifier = Modifier.size(14.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(
+            label,
+            style = TextStyles.button.copy(fontSize = 13.5.sp),
+            fontWeight = if (pressed) FontWeight.Bold else FontWeight.Medium,
+            color = colors.textMain,
+            maxLines = 1,
+        )
+        Spacer(Modifier.width(6.dp))
+        Text("$count", style = TextStyles.num, color = if (pressed) colors.textMain else colors.textMuted)
     }
 }
 
@@ -296,8 +510,9 @@ private fun SearchField(query: String, onChange: (String) -> Unit) {
 
 /** 목록 머리: 개수와 필터 초기화 (웹 .list-head) */
 @Composable
-private fun ListHead(total: Int, shown: Int, filtered: Boolean, onReset: () -> Unit) {
+private fun ListHead(total: Int, shown: Int, received: Boolean, filtered: Boolean, onReset: () -> Unit) {
     val colors = AppTheme.colors
+    val noun = if (received) "받은 질문" else "질문"
     Row(
         Modifier
             .fillMaxWidth()
@@ -306,7 +521,7 @@ private fun ListHead(total: Int, shown: Int, filtered: Boolean, onReset: () -> U
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            if (filtered) "질문 ${total}개 중 ${shown}개" else "질문 ${total}개",
+            if (shown == total) "$noun ${total}개" else "$noun ${total}개 중 ${shown}개",
             style = TextStyles.num,
             color = colors.textMuted,
             modifier = Modifier.weight(1f),
@@ -315,10 +530,14 @@ private fun ListHead(total: Int, shown: Int, filtered: Boolean, onReset: () -> U
     }
 }
 
-/** 질문 행: 번호 → 제목 → 카테고리. 행 사이는 옅은 선, 누르면 글자보다 조금 넓게 각진 바탕 (웹 .q-row 좁은 화면) */
+/**
+ * 질문 행: 번호(+ 학습 수준, 별표) → 제목 → 카테고리 (웹 .q-row 좁은 화면).
+ * 행 사이는 옅은 선, 누르면 글자보다 조금 넓게 각진 바탕이 깔린다. 별표는 엄지가 닿는 오른쪽 끝에 둔다.
+ */
 @Composable
-private fun QuestionRow(q: Question, first: Boolean, onClick: () -> Unit) {
+private fun QuestionRow(q: Question, first: Boolean, records: Records.State, onClick: () -> Unit) {
     val colors = AppTheme.colors
+    val item = records.item(q.id)
     if (!first) RowRule()
     Column(
         Modifier
@@ -328,7 +547,17 @@ private fun QuestionRow(q: Question, first: Boolean, onClick: () -> Unit) {
             .clickable(onClick = onClick)
             .padding(horizontal = PaperPadding - RowInset, vertical = 14.dp),
     ) {
-        Text(q.label, style = TextStyles.num, color = colors.textMuted)
+        Row(Modifier.fillMaxWidth().height(24.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(q.label, style = TextStyles.num, color = colors.textMuted, modifier = Modifier.weight(1f))
+            if (item.level != Records.Level.NEW) LevelBadge(item.level)
+            if (records.signedIn) {
+                StarButton(
+                    starred = item.starred,
+                    onToggle = { Records.setStarred(q.id, !item.starred) },
+                    modifier = Modifier.offset(x = 6.dp),
+                )
+            }
+        }
         Spacer(Modifier.height(2.dp))
         Text(q.title, style = TextStyles.rowTitle, color = colors.textMain, maxLines = 3, overflow = TextOverflow.Ellipsis)
         if (q.categoryName.isNotEmpty()) {
