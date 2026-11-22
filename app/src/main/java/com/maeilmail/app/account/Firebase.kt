@@ -93,48 +93,72 @@ object FirestoreRest {
     fun get(idToken: String, path: String): Map<String, Any?>? {
         val res = Http.get("$BASE/$path", mapOf("Authorization" to "Bearer $idToken"))
         if (res.code == 404) return null
-        if (!res.ok) {
-            val message = runCatching { JSONObject(res.text).optJSONObject("error")?.optString("status") }.getOrNull()
-            throw FirebaseAuthRest.FirebaseException(res.code, message ?: "HTTP ${res.code}")
-        }
+        if (!res.ok) throw error(res)
         return decodeFields(JSONObject(res.text).optJSONObject("fields"))
     }
 
-    /**
-     * 학습 기록 바꾸기 (웹의 batch.set(users/{uid}, { items: patch }, { merge: true })와 같다).
-     * patch: 질문 ID → 필드 → 값. 값이 null이면 그 필드를 지운다 (웹의 deleteField()).
-     * 바꾸는 필드만 updateMask에 넣으므로 다른 필드·다른 질문은 그대로 둔다. 문서가 없으면 만든다.
-     */
-    fun updateItems(idToken: String, uid: String, patch: Map<String, Map<String, Any?>>) {
-        val items = JSONObject()
-        val mask = JSONArray()
-        for ((id, fields) in patch) {
-            val set = JSONObject()
-            for ((key, value) in fields) {
-                mask.put("items.${fieldName(id)}.${fieldName(key)}")
-                if (value != null) set.put(key, encodeValue(value))
-            }
-            if (set.length() > 0) items.put(id, JSONObject().put("mapValue", JSONObject().put("fields", set)))
+    /** 컬렉션의 문서들을 읽는다: 문서 ID → 필드. 컬렉션이 비어 있으면 빈 지도 */
+    fun list(idToken: String, path: String): Map<String, Map<String, Any?>> {
+        val res = Http.get("$BASE/$path?pageSize=100", mapOf("Authorization" to "Bearer $idToken"))
+        if (!res.ok) throw error(res)
+        val docs = JSONObject(res.text).optJSONArray("documents") ?: return emptyMap()
+        return (0 until docs.length()).associate { i ->
+            val doc = docs.getJSONObject(i)
+            doc.getString("name").substringAfterLast('/') to decodeFields(doc.optJSONObject("fields"))
         }
-        if (mask.length() == 0) return
-        val write = JSONObject()
+    }
+
+    /**
+     * 문서 하나에 대한 merge 쓰기 (웹의 batch.set(ref, data, { merge: true })와 같다).
+     * set으로 넣은 필드만 updateMask에 넣으므로 다른 필드는 그대로 둔다. 값이 null이면 그 필드를 지운다 (웹의 deleteField()).
+     * 문서가 없으면 만든다.
+     */
+    class Write(val path: String) {
+        internal val fields = LinkedHashMap<String, Any?>()
+        internal val mask = mutableListOf<String>()
+
+        /** path: 필드 경로 칸들 (예: items, fe-1, level) */
+        fun set(vararg path: String, value: Any?): Write {
+            mask.add(path.joinToString(".") { fieldName(it) })
+            if (value != null) {
+                var map = fields
+                for (key in path.dropLast(1)) {
+                    @Suppress("UNCHECKED_CAST")
+                    map = map.getOrPut(key) { LinkedHashMap<String, Any?>() } as LinkedHashMap<String, Any?>
+                }
+                map[path.last()] = value
+            }
+            return this
+        }
+
+        internal fun toJson(): JSONObject = JSONObject()
             .put(
                 "update",
                 JSONObject()
-                    .put("name", "projects/${FirebaseConfig.PROJECT_ID}/databases/(default)/documents/users/$uid")
-                    .put("fields", JSONObject().put("items", JSONObject().put("mapValue", JSONObject().put("fields", items)))),
+                    .put("name", "projects/${FirebaseConfig.PROJECT_ID}/databases/(default)/documents/$path")
+                    .put("fields", encodeFields(fields)),
             )
-            .put("updateMask", JSONObject().put("fieldPaths", mask))
-        val res = Http.sendJson(
-            "POST",
-            "$BASE:commit",
-            JSONObject().put("writes", JSONArray().put(write)).toString(),
-            mapOf("Authorization" to "Bearer $idToken"),
-        )
-        if (!res.ok) {
-            val message = runCatching { JSONObject(res.text).optJSONObject("error")?.optString("status") }.getOrNull()
-            throw FirebaseAuthRest.FirebaseException(res.code, message ?: "HTTP ${res.code}")
-        }
+            .put("updateMask", JSONObject().put("fieldPaths", JSONArray(mask)))
+    }
+
+    /** 여러 문서 쓰기를 한 번에 보낸다 (웹의 writeBatch). 모두 되거나 모두 안 된다 */
+    fun commit(idToken: String, writes: List<Write>) {
+        val list = writes.filter { it.mask.isNotEmpty() }
+        if (list.isEmpty()) return
+        val body = JSONObject().put("writes", JSONArray().apply { list.forEach { put(it.toJson()) } })
+        val res = Http.sendJson("POST", "$BASE:commit", body.toString(), mapOf("Authorization" to "Bearer $idToken"))
+        if (!res.ok) throw error(res)
+    }
+
+    private fun error(res: Http.Response): FirebaseAuthRest.FirebaseException {
+        val message = runCatching { JSONObject(res.text).optJSONObject("error")?.optString("status") }.getOrNull()
+        return FirebaseAuthRest.FirebaseException(res.code, message?.ifEmpty { null } ?: "HTTP ${res.code}")
+    }
+
+    private fun encodeFields(map: Map<String, Any?>): JSONObject {
+        val o = JSONObject()
+        for ((k, v) in map) if (v != null) o.put(k, encodeValue(v))
+        return o
     }
 
     /** 필드 경로의 한 칸. 영문·숫자·밑줄이 아니면(예: fe-1) 역따옴표로 감싼다 */
@@ -147,6 +171,10 @@ object FirestoreRest {
         is Boolean -> JSONObject().put("booleanValue", value)
         is Int, is Long -> JSONObject().put("integerValue", value.toString())
         is Double, is Float -> JSONObject().put("doubleValue", (value as Number).toDouble())
+        is Map<*, *> -> JSONObject().put(
+            "mapValue",
+            JSONObject().put("fields", encodeFields(value.entries.associate { (k, v) -> k.toString() to v })),
+        )
         else -> throw IllegalArgumentException("Firestore에 쓸 수 없는 값: $value")
     }
 
