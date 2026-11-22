@@ -33,9 +33,10 @@
             android:text="@string/widget_label"
             android:textColor="@color/widget_text_main"
             android:textSize="12.5sp"
-            android:textStyle="bold" />
+            android:fontFamily="@font/pretendard_bold" />
 
         <TextView
+            android:fontFamily="@font/pretendard_regular"
             android:text="FE-1"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -62,9 +63,10 @@
         android:maxLines="3"
         android:textColor="@color/widget_text_main"
         android:textSize="16sp"
-        android:textStyle="bold" />
+        android:fontFamily="@font/pretendard_bold" />
 
     <TextView
+            android:fontFamily="@font/pretendard_regular"
         android:text="@string/widget_preview_sub"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

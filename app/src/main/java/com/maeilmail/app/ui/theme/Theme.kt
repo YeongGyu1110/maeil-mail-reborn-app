@@ -13,11 +13,14 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.maeilmail.app.R
 
 /**
  * 웹 서비스 base.css의 색 변수를 그대로 옮겼다 (라이트 :root, 다크 [data-theme="dark"]).
@@ -112,11 +115,23 @@ object Radius {
 }
 
 /**
+ * 웹과 같은 글꼴 Pretendard 1.3.9 (SIL OFL, assets/licenses/pretendard-OFL.txt).
+ * 웹은 CDN의 pretendard.min.css로 불러오고, 앱은 같은 판의 OTF 파일 4개(400·500·600·700)를 res/font에 넣었다.
+ */
+val Pretendard = FontFamily(
+    Font(R.font.pretendard_regular, FontWeight.Normal),
+    Font(R.font.pretendard_medium, FontWeight.Medium),
+    Font(R.font.pretendard_semibold, FontWeight.SemiBold),
+    Font(R.font.pretendard_bold, FontWeight.Bold),
+)
+
+/**
  * 웹의 글자 단계. 크기는 웹의 좁은 화면 값을 따르고, 이름은 웹 클래스에서 따왔다.
  * 웹처럼 글자 사이를 -0.015em 좁히고, 줄 높이는 CSS처럼 위아래로 고르게 나눈다.
  */
 object TextStyles {
     private val base = TextStyle(
+        fontFamily = Pretendard,
         letterSpacing = (-0.015).em,
         lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.None),
     )
