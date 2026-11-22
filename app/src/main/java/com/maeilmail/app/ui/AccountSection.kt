@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.maeilmail.app.account.Account
 import com.maeilmail.app.account.GitHubAuth
+import com.maeilmail.app.account.Records
 import com.maeilmail.app.ui.theme.AppTheme
 import com.maeilmail.app.ui.theme.Radius
 import com.maeilmail.app.ui.theme.TextStyles
@@ -39,6 +40,7 @@ import java.time.ZoneId
 fun AccountSection() {
     val colors = AppTheme.colors
     val account by Account.state.collectAsState()
+    val records by Records.state.collectAsState()
     var confirmSignOut by remember { mutableStateOf(false) }
     val user = account.user
     val pending = account.pending
@@ -65,19 +67,19 @@ fun AccountSection() {
         else -> {
             InfoRow("GitHub", user.login)
             RowRule()
-            val record = account.record
             InfoRow(
                 "학습 기록",
                 when {
-                    account.busy -> "읽는 중…"
-                    record != null -> "이해도 ${record.levels}개 · 별표 ${record.starred}개"
+                    records.loading && !records.loaded -> "읽는 중…"
+                    records.loaded -> "이해도 ${records.items.values.count { it.level != Records.Level.NEW }}개 · " +
+                        "별표 ${records.items.values.count { it.starred }}개"
                     else -> "다시 읽기"
                 },
-                onClick = if (account.busy) null else Account::checkRecord,
-                valueColor = if (record != null && !account.busy) colors.textSub else null,
+                onClick = { Records.refresh(force = true) },
+                valueColor = if (records.loaded) colors.textSub else null,
             )
             RowRule()
-            InfoRow("메모 저장소", record?.memoRepo ?: if (record != null) "고르지 않음" else "-")
+            InfoRow("메모 저장소", records.memoRepo ?: if (records.loaded) "고르지 않음" else "-")
             Spacer(Modifier.height(4.dp))
             Btn(
                 "로그아웃",
@@ -86,7 +88,7 @@ fun AccountSection() {
             )
         }
     }
-    account.error?.let {
+    (account.error ?: records.error)?.let {
         Text(
             it,
             style = TextStyles.small,

@@ -40,16 +40,12 @@ object Account {
 
     data class User(val login: String, val uid: String, val githubId: String?)
 
-    /** 웹과 같은 기록을 읽었는지 확인한 결과 */
-    data class RecordCheck(val levels: Int, val starred: Int, val memoRepo: String?)
-
     data class State(
         val user: User? = null,
         /** 사용자가 github.com에 코드를 적기를 기다리는 중 */
         val pending: GitHubAuth.DeviceCode? = null,
         val busy: Boolean = false,
         val error: String? = null,
-        val record: RecordCheck? = null,
     )
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -93,7 +89,7 @@ object Account {
                     saveUser(user)
                 }
                 _state.update { it.copy(user = user, pending = null) }
-                checkRecord()
+                Records.onSignedIn()
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 _state.update { it.copy(error = errorMessage(e), pending = null) }
@@ -163,36 +159,10 @@ object Account {
         cancelSignIn()
         prefs.edit().clear().apply()
         _state.value = State()
+        Records.onSignedOut()
     }
 
     fun clearError() = _state.update { it.copy(error = null) }
-
-    /** 웹과 같은 기록(users/{uid})을 읽어 몇 개인지 센다. 로그인이 제대로 됐는지 확인하는 용도 */
-    fun checkRecord() {
-        val user = _state.value.user ?: return
-        scope.launch {
-            _state.update { it.copy(busy = true, error = null) }
-            try {
-                val idToken = firebaseIdToken()
-                val doc = io { FirestoreRest.get(idToken, "users/${user.uid}") }
-                val items = (doc?.get("items") as? Map<*, *>).orEmpty().values.filterIsInstance<Map<*, *>>()
-                val repo = (doc?.get("memoRepo") as? Map<*, *>)?.get("fullName") as? String
-                _state.update {
-                    it.copy(
-                        record = RecordCheck(
-                            levels = items.count { item -> item["level"] != null },
-                            starred = items.count { item -> item["starred"] == true },
-                            memoRepo = repo,
-                        ),
-                    )
-                }
-            } catch (e: Exception) {
-                _state.update { it.copy(error = errorMessage(e)) }
-            } finally {
-                _state.update { it.copy(busy = false) }
-            }
-        }
-    }
 
     // ---------- 토큰 ----------
 

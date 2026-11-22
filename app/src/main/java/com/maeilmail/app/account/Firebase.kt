@@ -100,6 +100,56 @@ object FirestoreRest {
         return decodeFields(JSONObject(res.text).optJSONObject("fields"))
     }
 
+    /**
+     * 학습 기록 바꾸기 (웹의 batch.set(users/{uid}, { items: patch }, { merge: true })와 같다).
+     * patch: 질문 ID → 필드 → 값. 값이 null이면 그 필드를 지운다 (웹의 deleteField()).
+     * 바꾸는 필드만 updateMask에 넣으므로 다른 필드·다른 질문은 그대로 둔다. 문서가 없으면 만든다.
+     */
+    fun updateItems(idToken: String, uid: String, patch: Map<String, Map<String, Any?>>) {
+        val items = JSONObject()
+        val mask = JSONArray()
+        for ((id, fields) in patch) {
+            val set = JSONObject()
+            for ((key, value) in fields) {
+                mask.put("items.${fieldName(id)}.${fieldName(key)}")
+                if (value != null) set.put(key, encodeValue(value))
+            }
+            if (set.length() > 0) items.put(id, JSONObject().put("mapValue", JSONObject().put("fields", set)))
+        }
+        if (mask.length() == 0) return
+        val write = JSONObject()
+            .put(
+                "update",
+                JSONObject()
+                    .put("name", "projects/${FirebaseConfig.PROJECT_ID}/databases/(default)/documents/users/$uid")
+                    .put("fields", JSONObject().put("items", JSONObject().put("mapValue", JSONObject().put("fields", items)))),
+            )
+            .put("updateMask", JSONObject().put("fieldPaths", mask))
+        val res = Http.sendJson(
+            "POST",
+            "$BASE:commit",
+            JSONObject().put("writes", JSONArray().put(write)).toString(),
+            mapOf("Authorization" to "Bearer $idToken"),
+        )
+        if (!res.ok) {
+            val message = runCatching { JSONObject(res.text).optJSONObject("error")?.optString("status") }.getOrNull()
+            throw FirebaseAuthRest.FirebaseException(res.code, message ?: "HTTP ${res.code}")
+        }
+    }
+
+    /** 필드 경로의 한 칸. 영문·숫자·밑줄이 아니면(예: fe-1) 역따옴표로 감싼다 */
+    internal fun fieldName(name: String): String =
+        if (Regex("[A-Za-z_][A-Za-z_0-9]*").matches(name)) name
+        else "`" + name.replace("\\", "\\\\").replace("`", "\\`") + "`"
+
+    private fun encodeValue(value: Any): JSONObject = when (value) {
+        is String -> JSONObject().put("stringValue", value)
+        is Boolean -> JSONObject().put("booleanValue", value)
+        is Int, is Long -> JSONObject().put("integerValue", value.toString())
+        is Double, is Float -> JSONObject().put("doubleValue", (value as Number).toDouble())
+        else -> throw IllegalArgumentException("Firestore에 쓸 수 없는 값: $value")
+    }
+
     fun decodeFields(fields: JSONObject?): Map<String, Any?> {
         if (fields == null) return emptyMap()
         return fields.keys().asSequence().associateWith { decodeValue(fields.getJSONObject(it)) }
