@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 기기 백업에서 로그인 토큰(account.xml)은 뺀다 (Android 11 이하) -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="account.xml" />
+</full-backup-content>

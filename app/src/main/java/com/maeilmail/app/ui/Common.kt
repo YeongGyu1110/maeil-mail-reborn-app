@@ -48,6 +48,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -158,6 +160,9 @@ enum class BtnKind {
 
     /** 초록 면 (웹 .btn-primary) */
     Primary,
+
+    /** 빨간 면: 지우기·로그아웃처럼 되돌리기 어려운 일 (웹 .btn-danger) */
+    Danger,
 }
 
 /** 버튼: 모서리 4dp, 굵은 글자. 웹 .btn보다 높이만 손가락에 맞게 키웠다 (32px → 40dp) */
@@ -175,8 +180,14 @@ fun Btn(
         BtnKind.Text -> Color.Transparent
         BtnKind.Soft -> colors.bgSubtle
         BtnKind.Primary -> colors.primary
+        BtnKind.Danger -> colors.danger
     }
-    val color = contentColor ?: if (kind == BtnKind.Primary) colors.primaryInk else colors.textSub
+    val color = contentColor ?: when (kind) {
+        BtnKind.Primary -> colors.primaryInk
+        // 웹과 같다: 라이트는 흰 글자, 다크는 짙은 글자
+        BtnKind.Danger -> if (colors.isDark) Color(0xFF1F0D0D) else Color.White
+        else -> colors.textSub
+    }
     Box(
         modifier
             .alpha(if (enabled) 1f else 0.45f)
@@ -335,6 +346,42 @@ fun InfoRow(
                 },
                 fontWeight = if (onClick != null && enabled) FontWeight.SemiBold else null,
             )
+        }
+    }
+}
+
+/**
+ * 확인 창 (웹 .confirm-dialog): 모서리 4dp, 제목·설명, 오른쪽 아래에 글자 버튼(취소)과 면 버튼(확인).
+ * danger면 확인 버튼을 빨간 면으로 둔다 (웹 .btn-danger).
+ */
+@Composable
+fun ConfirmDialog(
+    title: String,
+    body: String,
+    confirm: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+    dismiss: String = "취소",
+    danger: Boolean = false,
+) {
+    val colors = AppTheme.colors
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .background(colors.bgPaper, Radius.control)
+                .padding(24.dp),
+        ) {
+            Text(title, style = TextStyles.dialogTitle, color = colors.textMain)
+            Spacer(Modifier.height(8.dp))
+            Text(body, style = TextStyles.body.copy(fontSize = 14.sp, lineHeight = 22.sp), color = colors.textSub)
+            Row(
+                Modifier.fillMaxWidth().padding(top = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
+            ) {
+                Btn(dismiss, onClick = onDismiss)
+                Btn(confirm, onClick = onConfirm, kind = if (danger) BtnKind.Danger else BtnKind.Primary)
+            }
         }
     }
 }

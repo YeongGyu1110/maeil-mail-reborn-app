@@ -150,10 +150,17 @@ GitHub Actions의 예약 실행은 05:07로 잡아도 실제로는 3~6시간 늦
 ### 로그인
 - 처음 한 번만 GitHub Device Flow로 로그인한다. 휴대폰에 나온 코드를 github.com에서 입력한다.
 - 받은 갱신 토큰(refresh token)으로 GitHub 토큰을 **자동 갱신**한다. 다시 로그인하라는 화면이 뜨지 않게 한다. (GithubWidget과 같은 방식)
-- 같은 GitHub 토큰으로 Firebase에 로그인해, 웹과 같은 계정(같은 `uid`)의 기록을 쓴다. Firebase 로그인은 Firebase가 알아서 유지한다.
-- 미리 해야 할 일
-  - GitHub App `maeil-mail-reborn-memo` 설정에서 Device Flow 켜기 (필요한지 구현할 때 확인)
-  - Firebase 콘솔에 안드로이드 앱 등록
+- 같은 GitHub 토큰으로 Firebase에 로그인해, 웹과 같은 계정(같은 `uid`)의 기록을 쓴다.
+  - 로그인은 웹과 같은 GitHub App(`maeil-mail-reborn-memo`)으로 한다. 웹의 Firebase GitHub 로그인이 이 앱을 쓰므로, 같은 앱의 토큰이어야 메모 저장소 목록(`/user/installations`)과 커밋을 웹과 같은 권한으로 쓴다.
+  - Firebase는 SDK 없이 REST로 쓴다 (로그인 `accounts:signInWithIdp`, 토큰 갱신 `securetoken`, 기록 `firestore.googleapis.com`). 키는 웹 `firebase-config.js`의 공개 웹 키를 그대로 쓴다. 브라우저 밖에서도 이 키가 받아지는 것을 확인했다 (2026-11-21). 그래서 Firebase 콘솔에 안드로이드 앱을 등록하지 않는다.
+  - Firebase idToken은 1시간마다 갱신 토큰으로 새로 받는다.
+  - 이 GitHub App은 사용자 토큰 만료를 쓰지 않는다 (로그인 응답에 만료 시각·갱신 토큰이 없다, 2026-11-22 확인). 그래서 토큰은 앱 권한을 취소하기 전까지 그대로 쓴다. 나중에 앱 설정에서 만료를 켜면, 만료 5분 전에 갱신 토큰으로 새로 받는 코드가 이미 있다.
+  - 토큰은 앱 전용 저장소에 두고 기기 백업에서는 뺀다.
+  - 안드로이드 16은 뒤로 간 앱의 인터넷을 막는다. 그래서 브라우저에서 승인하는 동안 생긴 연결 오류는 실패로 보지 않고 기다리며, 앱으로 돌아오면 바로 다시 묻는다.
+- 미리 해야 할 일 (마침)
+  - GitHub App `maeil-mail-reborn-memo` 설정에서 Device Flow 켜기
+  - 그 앱의 Client ID를 앱 코드(`account/GitHubAuth.kt`)에 넣기. 비공개 앱이라 공개 API로는 읽을 수 없다.
+- 2026-11-22 확인: Device Flow 토큰으로 Firebase에 들어가 웹과 같은 계정의 `users/{uid}`를 읽었다 (보안 규칙상 웹 주인 계정만 읽을 수 있다).
 
 ## 5. 화면
 

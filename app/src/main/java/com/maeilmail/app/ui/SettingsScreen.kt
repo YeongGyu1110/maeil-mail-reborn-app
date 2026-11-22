@@ -65,7 +65,7 @@ import java.time.LocalTime
 import java.util.Date
 import java.util.Locale
 
-/** 설정: 알림과 질문 저장소 상태 (계정·메모 저장소는 뒤 단계에서 더한다) */
+/** 설정: 계정, 알림, 질문 저장소 상태 */
 @Composable
 fun SettingsScreen(state: Library.State) {
     val colors = AppTheme.colors
@@ -95,6 +95,9 @@ fun SettingsScreen(state: Library.State) {
                 .verticalScroll(rememberScrollState())
                 .padding(top = 20.dp, bottom = 32.dp),
         ) {
+            AccountSection()
+
+            Spacer(Modifier.height(36.dp))
             DividerHead("알림")
             Spacer(Modifier.height(4.dp))
             InfoRow(

@@ -8,6 +8,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.mutableStateOf
+import com.maeilmail.app.account.Account
 import com.maeilmail.app.data.Library
 import com.maeilmail.app.reminder.Reminders
 import com.maeilmail.app.ui.App
@@ -27,6 +28,7 @@ class MainActivity : ComponentActivity() {
         )
         super.onCreate(savedInstanceState)
         Library.init(this)
+        Account.init(this)
         // 화면을 돌려 다시 만들 때는 이미 연 질문을 또 열지 않는다
         if (savedInstanceState == null) readOpenRequest(intent)
         // 앱을 열지 않아도 6시간마다 발송 기록을 받아 알림이 빠지지 않게 한다
@@ -48,6 +50,8 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         // 앱을 열 때마다 오래됐으면 웹 서비스 저장소와 맞춘다
         Library.syncIfStale()
+        // 브라우저에서 GitHub 승인을 마치고 돌아왔으면 바로 로그인을 마저 한다
+        Account.onResume()
     }
 
     private fun readOpenRequest(intent: Intent?) {
