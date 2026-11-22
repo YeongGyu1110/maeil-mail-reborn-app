@@ -131,7 +131,7 @@ fun ListScreen(
             (filter.category.isEmpty() || q.category == filter.category) &&
                 (filter.level == null || records.level(q.id) == filter.level) &&
                 (!filter.starred || records.item(q.id).starred) &&
-                search.matches(matcher, q)
+                search.matches(matcher, q, records.item(q.id).memo.orEmpty())
         }
     }
     val order = remember(visible) { visible.map { it.id } }
@@ -189,7 +189,11 @@ fun ListScreen(
             } else {
                 Column(Modifier.fillMaxSize()) {
                     Spacer(Modifier.height(20.dp))
-                    SearchField(filter.query, onChange = { filter.query = it })
+                    SearchField(
+                        filter.query,
+                        placeholder = if (records.signedIn) "질문, 키워드, 내 메모 검색" else "질문, 키워드 검색",
+                        onChange = { filter.query = it },
+                    )
                     ListHead(
                         total = if (filter.received) received.size else catalog.questions.size,
                         shown = visible.size,
@@ -467,7 +471,7 @@ private fun CategoryOption(name: String, count: Int, selected: Boolean, onClick:
 
 /** 검색창: 옅은 면, 모서리 4dp, 누르면 초록 테두리 (웹 .search input) */
 @Composable
-private fun SearchField(query: String, onChange: (String) -> Unit) {
+private fun SearchField(query: String, placeholder: String, onChange: (String) -> Unit) {
     val colors = AppTheme.colors
     val focus = LocalFocusManager.current
     val interaction = remember { MutableInteractionSource() }
@@ -486,7 +490,7 @@ private fun SearchField(query: String, onChange: (String) -> Unit) {
         Spacer(Modifier.width(10.dp))
         Box(Modifier.weight(1f)) {
             if (query.isEmpty()) {
-                Text("질문, 키워드 검색", style = TextStyles.body, color = colors.textMuted)
+                Text(placeholder, style = TextStyles.body, color = colors.textMuted)
             }
             BasicTextField(
                 value = query,
@@ -560,18 +564,43 @@ private fun QuestionRow(q: Question, first: Boolean, records: Records.State, onC
         }
         Spacer(Modifier.height(2.dp))
         Text(q.title, style = TextStyles.rowTitle, color = colors.textMain, maxLines = 3, overflow = TextOverflow.Ellipsis)
-        if (q.categoryName.isNotEmpty()) {
+        val memo = item.memo
+        if (q.categoryName.isNotEmpty() || memo != null) {
             Spacer(Modifier.height(2.dp))
-            Text(
-                q.categoryName,
-                style = TextStyles.small,
-                color = colors.textMuted,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            // 분류 · ✎ 메모 한 줄 (웹 .q-meta: 마크다운 기호를 뺀 미리보기)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (q.categoryName.isNotEmpty()) {
+                    Text(q.categoryName, style = TextStyles.small, color = colors.textMuted, maxLines = 1)
+                }
+                if (memo != null) {
+                    if (q.categoryName.isNotEmpty()) Text(" · ", style = TextStyles.small, color = colors.textMuted)
+                    Icon(LineIcons.Pencil, contentDescription = "메모", tint = colors.primary, modifier = Modifier.size(12.dp))
+                    Spacer(Modifier.width(5.dp))
+                    Text(
+                        remember(memo) { memoPlainText(memo) },
+                        style = TextStyles.small,
+                        color = colors.textSub,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
         }
     }
 }
+
+/** 한 줄 미리보기용: 마크다운 기호를 걷어 내고 읽을 글자만 남긴다 (웹 memoPlainText와 같다) */
+internal fun memoPlainText(md: String): String = md
+    .replace(Regex("""^\s*(```|~~~).*$""", RegexOption.MULTILINE), "") // 코드 블록 울타리
+    .replace(Regex("""^[\s|:-]+$""", RegexOption.MULTILINE), "") // 표 구분선, 가로줄
+    .replace(Regex("""!\[([^\]]*)]\([^)]*\)"""), "$1") // 이미지 → 대체 글
+    .replace(Regex("""\[([^\]]*)]\([^)]*\)"""), "$1") // 링크 → 글자
+    .replace(Regex("""^\s*(#{1,6}\s+|>\s?|[-*+]\s+\[[ xX]]\s+|[-*+]\s+|\d+[.)]\s+)""", RegexOption.MULTILINE), "") // 제목·인용·목록 기호
+    .replace(Regex("""\*\*|__|~~|`"""), "") // 강조·코드 기호
+    .replace(Regex("""\s*\|\s*"""), " ") // 표 칸 나눔
+    .replace(Regex("""\s+"""), " ")
+    .trim()
+    .take(160)
 
 /** 처음 열어 받아 둔 질문이 없을 때: 받는 중이면 진행을, 실패했으면 다시 시도를 보여준다 */
 @Composable

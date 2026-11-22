@@ -46,6 +46,9 @@ object LineIcons {
     /** 별표한 질문 (칠한 별) */
     val StarFilled = icon("StarFilled", STAR, filled = true)
 
+    /** 메모 (웹의 메모 표시 아이콘) */
+    val Pencil = icon("Pencil", "M12 20h9", "M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z")
+
     /** 받은 질문 (웹의 받은 질문 필터 아이콘) */
     val Inbox = icon(
         "Inbox",
