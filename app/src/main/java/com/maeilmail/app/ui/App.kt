@@ -102,6 +102,14 @@ fun App(openRequest: String?, onOpenHandled: () -> Unit) {
         Library.clearNotice()
     }
 
+    // 메모 저장 결과 (저장했어요, 커밋했어요, 올리지 못했어요 등)
+    val records by Records.state.collectAsState()
+    LaunchedEffect(records.notice) {
+        val message = records.notice ?: return@LaunchedEffect
+        Records.clearNotice()
+        snackbar.showSnackbar(message)
+    }
+
     val id = openId
     if (id != null) {
         Box(Modifier.fillMaxSize()) {

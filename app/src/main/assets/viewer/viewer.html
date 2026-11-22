@@ -19,6 +19,7 @@
   <script src="lib/prism-yaml.min.js"></script>
   <script src="lib/prism-sass.min.js"></script>
   <link rel="stylesheet" href="viewer.css">
+  <link rel="stylesheet" href="memo.css">
 </head>
 <body>
   <header class="doc-header">
@@ -27,6 +28,13 @@
     <!-- 지금 학습 상태: 기록한 것이 있을 때만 보인다. 누르면 학습 기록으로 내려간다 (웹 .doc-status) -->
     <div id="doc-status" class="doc-status" hidden>
       <a id="status-level" class="level-badge" href="#study"></a>
+      <a id="status-memo" class="status-memo" href="#memo" hidden>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 20h9"></path>
+          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+        </svg>
+        내 메모
+      </a>
     </div>
   </header>
   <main id="content"></main>
@@ -41,7 +49,23 @@
         <button type="button" class="level-option" role="radio" data-level="done"><span class="dot dot-done"></span>완벽 이해</button>
       </div>
     </div>
+    <!-- 내 메모: 보기·편집기는 웹과 같은 memo-ui.js가 그리고, 저장·GitHub 커밋은 앱이 한다 -->
+    <div id="memo" class="study-block">
+      <div class="study-block-head">
+        <h3 class="study-block-title">내 메모</h3>
+        <button type="button" id="memo-edit" class="btn btn-sm btn-soft" hidden>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 20h9"></path>
+            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+          </svg>
+          편집
+        </button>
+      </div>
+      <div id="memo-body"></div>
+    </div>
   </section>
+  <script src="memo-core.js"></script>
+  <script src="memo-ui.js"></script>
   <script src="viewer.js"></script>
 </body>
 </html>
