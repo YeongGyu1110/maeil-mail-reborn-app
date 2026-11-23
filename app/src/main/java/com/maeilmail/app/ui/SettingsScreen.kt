@@ -191,6 +191,16 @@ fun SettingsScreen(state: Library.State) {
                     onClick = { context.startActivity(WebLink.settingsIntent(context)) },
                 )
                 RowRule()
+                // (레거시) 11/23까지 받은 메일의 옛 주소(GitHub Pages). 증명 파일이 없어 사용자가 휴대폰 설정에서 직접 켜야 한다
+                val legacyOpen = remember(resumed) { WebLink.isOpenedByApp(context, WebLink.LEGACY_HOST) }
+                InfoRow(
+                    "이전 메일 링크도 앱에서 열기",
+                    if (legacyOpen == true) "켜짐" else "켜기",
+                    sub = "11월 23일까지 받은 메일은 옛 주소예요. 휴대폰 설정에서 ${WebLink.LEGACY_HOST}를 직접 켜야 앱으로 열려요",
+                    valueColor = if (legacyOpen == true) colors.textSub else null,
+                    onClick = { context.startActivity(WebLink.settingsIntent(context)) },
+                )
+                RowRule()
             }
             // 화면 테마: 휴대폰 설정을 따르거나 라이트·다크로 고정한다 (상단 바의 해·달 버튼과 같은 설정)
             InfoRow("화면 테마", theme.label, onClick = { pickingTheme = true })

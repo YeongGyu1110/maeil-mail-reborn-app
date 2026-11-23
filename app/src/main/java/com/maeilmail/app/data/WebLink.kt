@@ -20,6 +20,14 @@ object WebLink {
     private const val QUESTIONS_PATH = "/questions"
 
     /**
+     * (레거시) 2026-11-23까지 받은 메일의 버튼 주소: GitHub Pages 프로젝트 사이트 yeonggyu1110.github.io/maeil-mail-reborn/.
+     * 이 호스트의 맨 앞은 개인 사이트라 증명 파일을 두지 않았다. 그래서 저절로 허락되지 않고,
+     * 사용자가 휴대폰 설정(지원되는 웹 주소)에서 직접 켜야 앱으로 열린다. 옛 메일을 더 열지 않게 되면 지운다.
+     */
+    const val LEGACY_HOST = "yeonggyu1110.github.io"
+    private const val LEGACY_ROOT = "/maeil-mail-reborn"
+
+    /**
      * 주소에서 열 질문 ID를 꺼낸다 (웹 questions/index.html과 같은 규칙).
      * 질문 화면 주소가 아니면 null (목록 주소 등은 앱만 연다). 접두어 없는 옛 링크(?q=1)는 프론트엔드 질문으로 본다.
      */
@@ -27,8 +35,12 @@ object WebLink {
 
     /** 주소의 호스트·경로·q 값으로 판단한다 (Uri 없이 시험하려고 나눴다) */
     internal fun questionId(host: String?, path: String?, q: String?): String? {
-        if (!host.equals(HOST, ignoreCase = true)) return null
-        if (!path.orEmpty().startsWith(QUESTIONS_PATH, ignoreCase = true)) return null
+        val questions = when {
+            host.equals(HOST, ignoreCase = true) -> QUESTIONS_PATH
+            host.equals(LEGACY_HOST, ignoreCase = true) -> LEGACY_ROOT + QUESTIONS_PATH
+            else -> return null
+        }
+        if (!path.orEmpty().startsWith(questions, ignoreCase = true)) return null
         return normalizeId(q)
     }
 
@@ -37,13 +49,14 @@ object WebLink {
      * 웹 주소에 앱을 증명하는 파일(assetlinks.json)이 있으면 저절로 허락되고, 없으면 사용자가 설정에서 직접 허락한다.
      * 알 수 없으면(안드로이드 11 이하) null
      */
-    fun isOpenedByApp(context: Context): Boolean? {
+    fun isOpenedByApp(context: Context, host: String = HOST): Boolean? {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return null
         val state = context.getSystemService(DomainVerificationManager::class.java)
             ?.getDomainVerificationUserState(context.packageName) ?: return null
         if (!state.isLinkHandlingAllowed) return false
-        val host = state.hostToStateMap[HOST]
-        return host == DomainVerificationUserState.DOMAIN_STATE_VERIFIED || host == DomainVerificationUserState.DOMAIN_STATE_SELECTED
+        val hostState = state.hostToStateMap[host]
+        return hostState == DomainVerificationUserState.DOMAIN_STATE_VERIFIED ||
+            hostState == DomainVerificationUserState.DOMAIN_STATE_SELECTED
     }
 
     /** 이 앱의 "기본으로 열기" 설정 화면 (여기서 웹 주소를 앱으로 열도록 허락한다) */

@@ -41,6 +41,16 @@
                 <data android:scheme="https" />
                 <data android:host="maeil-mail-reborn.pages.dev" />
             </intent-filter>
+            <!-- (레거시) 2026-11-23까지 받은 메일의 옛 주소(GitHub Pages). 이 호스트에는 증명 파일이 없어 검증하지 않고(autoVerify 없음),
+                 사용자가 휴대폰 설정의 "지원되는 웹 주소"에서 직접 켜야 앱으로 열린다. 개인 사이트의 다른 페이지는 받지 않는다 -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="yeonggyu1110.github.io" />
+                <data android:pathPrefix="/maeil-mail-reborn/" />
+            </intent-filter>
         </activity>
 
         <!-- 홈 화면 위젯: 오늘의 질문 -->
