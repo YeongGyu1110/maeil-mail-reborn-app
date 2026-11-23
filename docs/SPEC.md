@@ -225,6 +225,10 @@ GitHub Actions의 예약 실행은 05:07로 잡아도 실제로는 3~6시간 늦
 - 마크다운은 앱 안의 WebView에서 웹과 같은 `marked` 15.0.12와 `Prism` 1.29.0으로 그린다. 파일은 앱에 넣어 두었다 (`docs/THIRD_PARTY.md`).
 - 빌드: `JAVA_HOME`을 Android Studio에 들어 있는 JDK(`C:/Program Files/Android/Android Studio/jbr`)로 두고 `gradlew assembleDebug`. 설치는 `adb install --user 0 -r` (듀얼 앱 사용자에게 설치하지 않는다).
 - Play 스토어에 올리지 않는다. USB 디버깅으로 설치하고 업데이트한다. debug 키로 서명한다.
+- 메일의 "답변 확인하기 →" 버튼(웹 주소 `https://yeonggyu1110.github.io/maeil-mail-reborn/questions/?q=…`)은 휴대폰에 앱이 있으면 앱의 질문 화면을 연다 (안드로이드 앱 링크, 2026-11-23). 쿠팡 광고처럼 앱이 있으면 앱으로, 앱의 "지원되는 링크 열기"를 끄거나 앱이 없으면 웹으로 간다. 컴퓨터에서는 그대로 웹이다.
+  - 앱은 `/maeil-mail-reborn/` 아래 주소만 받는다. 개인 사이트의 다른 페이지는 브라우저가 연다.
+  - 저절로 앱이 열리려면 안드로이드가 주소의 주인을 확인해야 한다(검증). 개인 사이트 저장소 `YeongGyu1110/yeonggyu1110.github.io`의 `.well-known/assetlinks.json`에 앱 패키지와 서명 지문(debug 키 SHA-256 `2C:24:BD:…:04:F5`)을 적고, GitHub Pages가 점으로 시작하는 폴더를 빼지 않도록 `.nojekyll`을 둔다. 서명 키를 바꾸면 이 파일도 바꾼다.
+  - 설정 › 앱 › "메일 링크를 앱에서 열기"에서 지금 상태를 보고, 안드로이드의 "기본으로 열기" 화면으로 갈 수 있다.
 - 앱 이름은 "매일메일". 아이콘은 후보 3개(지면, 편지, 점과 줄) 중 "점과 줄"로 정했다 (2026-11-22): 흰 바탕에 웹 상단 바의 초록 각진 점과 문서 제목 줄 두 개. 테마 아이콘(단색)과 알림 표시줄 아이콘도 같은 모양이다.
 - 코드 저장소: https://github.com/YeongGyu1110/maeil-mail-reborn-app (공개)
 
