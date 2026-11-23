@@ -225,9 +225,12 @@ GitHub Actions의 예약 실행은 05:07로 잡아도 실제로는 3~6시간 늦
 - 마크다운은 앱 안의 WebView에서 웹과 같은 `marked` 15.0.12와 `Prism` 1.29.0으로 그린다. 파일은 앱에 넣어 두었다 (`docs/THIRD_PARTY.md`).
 - 빌드: `JAVA_HOME`을 Android Studio에 들어 있는 JDK(`C:/Program Files/Android/Android Studio/jbr`)로 두고 `gradlew assembleDebug`. 설치는 `adb install --user 0 -r` (듀얼 앱 사용자에게 설치하지 않는다).
 - Play 스토어에 올리지 않는다. USB 디버깅으로 설치하고 업데이트한다. debug 키로 서명한다.
-- 메일의 "답변 확인하기 →" 버튼(웹 주소 `https://yeonggyu1110.github.io/maeil-mail-reborn/questions/?q=…`)은 휴대폰에 앱이 있으면 앱의 질문 화면을 연다 (안드로이드 앱 링크, 2026-11-23). 쿠팡 광고처럼 앱이 있으면 앱으로, 앱의 "지원되는 링크 열기"를 끄거나 앱이 없으면 웹으로 간다. 컴퓨터에서는 그대로 웹이다.
-  - 앱은 `/maeil-mail-reborn/` 아래 주소만 받는다. 개인 사이트의 다른 페이지는 브라우저가 연다.
-  - 저절로 앱이 열리려면 안드로이드가 주소의 주인을 확인해야 한다(검증). 개인 사이트 저장소 `YeongGyu1110/yeonggyu1110.github.io`의 `.well-known/assetlinks.json`에 앱 패키지와 서명 지문(debug 키 SHA-256 `2C:24:BD:…:04:F5`)을 적고, GitHub Pages가 점으로 시작하는 폴더를 빼지 않도록 `.nojekyll`을 둔다. 서명 키를 바꾸면 이 파일도 바꾼다.
+- 메일의 "답변 확인하기 →" 버튼(웹 주소 `https://maeil-mail-reborn.pages.dev/questions/?q=…`)은 휴대폰에 앱이 있으면 앱의 질문 화면을 연다 (안드로이드 앱 링크, 2026-11-23). 쿠팡 광고처럼 앱이 있으면 앱으로, 앱의 "지원되는 링크 열기"를 끄거나 앱이 없으면 웹으로 간다. 컴퓨터에서는 그대로 웹이다.
+  - 앱은 `maeil-mail-reborn.pages.dev`의 모든 주소를 받는다. 질문 화면 주소면 그 질문을, 그 밖의 주소면 앱 첫 화면을 연다. 미리보기 배포 주소(`<브랜치>.maeil-mail-reborn.pages.dev`)와 옛 GitHub Pages 주소는 받지 않는다(브라우저가 연다).
+  - 저절로 앱이 열리려면 안드로이드가 주소의 주인을 확인해야 한다(검증). 그 근거가 웹 저장소의 `.well-known/assetlinks.json`이다: 앱 패키지와 서명 지문(debug 키 SHA-256 `2C:24:BD:…:04:F5`). 서명 키를 바꾸면 이 파일도 바꾼다.
+  - 안드로이드는 이 파일을 주소 맨 앞(`https://호스트/.well-known/assetlinks.json`)에서만 찾는다. GitHub Pages 프로젝트 사이트(`yeonggyu1110.github.io/maeil-mail-reborn/`)는 맨 앞이 개인 사이트라 둘 수 없어서, 웹을 Cloudflare Pages(`https://maeil-mail-reborn.pages.dev`, 웹 저장소 `master`를 빌드 없이 그대로 배포)에서도 연다.
+  - Cloudflare는 새 프로젝트를 Workers로 만들게 하고 Pages를 "레거시"로 표시한다. 그래도 Pages를 골랐다: 주소가 계정과 무관하고(Workers는 `<이름>.<계정 하위 도메인>.workers.dev`라 계정 하위 도메인을 바꾸면 메일 링크와 앱 링크 검증이 함께 깨진다), `404.html`과 `.git` 제외를 저절로 하며, 저장소에 설정 파일이 필요 없다. 무료 한도(빌드 월 500회, 파일 20,000개, 정적 요청 무제한)는 넉넉하다.
+  - 주소를 옮기며 웹 쪽에서 할 일: Actions 변수 `PAGES_URL`을 새 주소로, Firebase 인증의 승인된 도메인에 새 주소 추가, 새 주소에서 한 번 로그인(브라우저 저장소가 주소마다 따로다). 학습 기록·메모는 Firebase와 GitHub에 있어 주소와 상관없이 그대로다.
   - 설정 › 앱 › "메일 링크를 앱에서 열기"에서 지금 상태를 보고, 안드로이드의 "기본으로 열기" 화면으로 갈 수 있다.
 - 앱 이름은 "매일메일". 아이콘은 후보 3개(지면, 편지, 점과 줄) 중 "점과 줄"로 정했다 (2026-11-22): 흰 바탕에 웹 상단 바의 초록 각진 점과 문서 제목 줄 두 개. 테마 아이콘(단색)과 알림 표시줄 아이콘도 같은 모양이다.
 - 코드 저장소: https://github.com/YeongGyu1110/maeil-mail-reborn-app (공개)
@@ -238,6 +241,7 @@ GitHub Actions의 예약 실행은 05:07로 잡아도 실제로는 3~6시간 늦
 - `.github/workflows/daily-mail.yml`: `MAIL_DAYS` 환경 변수 추가. 예약 실행은 매일. 수동 실행인지 `send_mail.py`에 알려 준다. push 전에 `git pull --rebase`.
 - `index.html`: "오늘 받은 질문"을 위의 규칙대로 찾기 (`next`, `today` 사용).
 - 모두 반영됨: PR #15 (2026-11-17 merge). 메모 묶음 문서와 3,000자는 PR #18. 메모 임시저장·삭제 시 파일 삭제·충돌 확인·화면 역할 나누기는 PR #19 (2026-11-21 merge).
+- `.well-known/assetlinks.json`: 앱 링크 증명 파일. 브랜치 `feat/android-app-links` (2026-11-23 push, PR은 사용자가 만든다).
 - 새 발송 방식은 2026-11-18 첫 실행부터 정상 동작 중이다. 11/19, 11/20에 `next`에 미리 정해 둔 질문이 그대로 발송됐고, 토요일(11/21)에는 커밋이 생기지 않았다. 실제 실행 시각은 10:45~11:22(KST).
 
 ## 하지 않기로 한 것
