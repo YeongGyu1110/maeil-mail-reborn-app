@@ -242,7 +242,7 @@ GitHub Actions의 예약 실행은 05:07로 잡아도 실제로는 3~6시간 늦
 - `index.html`: "오늘 받은 질문"을 위의 규칙대로 찾기 (`next`, `today` 사용).
 - 모두 반영됨: PR #15 (2026-11-17 merge). 메모 묶음 문서와 3,000자는 PR #18. 메모 임시저장·삭제 시 파일 삭제·충돌 확인·화면 역할 나누기는 PR #19 (2026-11-21 merge).
 - `.well-known/assetlinks.json`: 앱 링크 증명 파일. PR #20 (2026-11-23 merge). 같은 날 휴대폰에서 `maeil-mail-reborn.pages.dev`가 검증됨(`verified`)을 확인했고, 앱을 지정하지 않고 연 질문 주소가 앱의 질문 화면으로 열렸다. Firebase 승인된 도메인에도 새 주소가 들어 있다.
-  - 지운 Cloudflare Worker의 Workers Builds 연결이 남아 PR과 push마다 "Workers Builds: maeil-mail-reborn" 실패 검사가 붙는다. 필수 검사가 아니라 병합은 막지 않는다. 같은 이름으로 Worker를 다시 만들어 설정 › Builds에서 연결을 끊고 지우면 없앨 수 있다.
+  - 지운 Cloudflare Worker의 Workers Builds 연결이 남아 PR과 push마다 "Workers Builds: maeil-mail-reborn" 실패 검사가 붙는다. 필수 검사가 아니라 병합은 막지 않는다. 없애려면 같은 이름으로 Worker를 다시 만들어 설정 › Builds에서 연결을 끊고 지워 볼 수 있다 (아직 해 보지 않았다).
 - 새 발송 방식은 2026-11-18 첫 실행부터 정상 동작 중이다. 11/19, 11/20에 `next`에 미리 정해 둔 질문이 그대로 발송됐고, 토요일(11/21)에는 커밋이 생기지 않았다. 실제 실행 시각은 10:45~11:22(KST).
 
 ## 하지 않기로 한 것
