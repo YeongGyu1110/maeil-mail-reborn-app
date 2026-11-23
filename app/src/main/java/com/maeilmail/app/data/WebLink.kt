@@ -12,20 +12,24 @@ import android.provider.Settings as AndroidSettings
  * 웹 서비스 주소를 앱이 받는다 (메일의 "답변 확인하기 →" 버튼 등).
  * 메일 버튼은 send_mail.py가 만든 {PAGES_URL}/questions/?q={id} 주소다.
  * 앱이 이 주소를 열도록 안드로이드가 허락하면(앱 링크), 휴대폰에서 누를 때 웹 대신 앱의 질문 화면이 열린다.
+ * 허락의 근거(앱 증명 파일)는 주소 맨 앞(/.well-known/assetlinks.json)에 있어야 해서,
+ * 웹을 GitHub Pages 프로젝트 사이트(yeonggyu1110.github.io/maeil-mail-reborn/) 대신 Cloudflare Pages 주소에서 받는다.
  */
 object WebLink {
-    const val HOST = "yeonggyu1110.github.io"
-    const val PATH = "/maeil-mail-reborn/"
+    const val HOST = "maeil-mail-reborn.pages.dev"
+    private const val QUESTIONS_PATH = "/questions"
 
     /**
      * 주소에서 열 질문 ID를 꺼낸다 (웹 questions/index.html과 같은 규칙).
      * 질문 화면 주소가 아니면 null (목록 주소 등은 앱만 연다). 접두어 없는 옛 링크(?q=1)는 프론트엔드 질문으로 본다.
      */
-    fun questionId(uri: Uri?): String? {
-        if (uri == null || !uri.host.equals(HOST, ignoreCase = true)) return null
-        val path = uri.path.orEmpty()
-        if (!path.startsWith("${PATH}questions", ignoreCase = true)) return null
-        return normalizeId(uri.getQueryParameter("q"))
+    fun questionId(uri: Uri?): String? = uri?.let { questionId(it.host, it.path, it.getQueryParameter("q")) }
+
+    /** 주소의 호스트·경로·q 값으로 판단한다 (Uri 없이 시험하려고 나눴다) */
+    internal fun questionId(host: String?, path: String?, q: String?): String? {
+        if (!host.equals(HOST, ignoreCase = true)) return null
+        if (!path.orEmpty().startsWith(QUESTIONS_PATH, ignoreCase = true)) return null
+        return normalizeId(q)
     }
 
     /**

@@ -18,6 +18,22 @@ class WebLinkTest {
     }
 
     @Test
+    fun `메일 버튼 주소에서 질문 ID를 꺼낸다`() {
+        assertEquals("be-100", WebLink.questionId("maeil-mail-reborn.pages.dev", "/questions/", "BE-100"))
+        assertEquals("fe-3", WebLink.questionId("Maeil-Mail-Reborn.pages.dev", "/questions", "3"))
+    }
+
+    @Test
+    fun `다른 호스트나 질문 화면이 아닌 주소에는 열 질문이 없다`() {
+        // 옛 GitHub Pages 주소는 앱 링크로 받지 않는다 (브라우저가 연다)
+        assertNull(WebLink.questionId("yeonggyu1110.github.io", "/maeil-mail-reborn/questions/", "be-100"))
+        // 미리보기 배포 주소도 받지 않는다
+        assertNull(WebLink.questionId("feat-x.maeil-mail-reborn.pages.dev", "/questions/", "be-100"))
+        assertNull(WebLink.questionId("maeil-mail-reborn.pages.dev", "/", "be-100"))
+        assertNull(WebLink.questionId(null, null, null))
+    }
+
+    @Test
     fun `알 수 없는 값이면 열지 않는다`() {
         assertNull(WebLink.normalizeId(null))
         assertNull(WebLink.normalizeId(""))
