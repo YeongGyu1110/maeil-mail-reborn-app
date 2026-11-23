@@ -32,6 +32,15 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- 웹 서비스 주소(메일의 "답변 확인하기" 버튼 등)를 앱에서 연다 (앱 링크). data/WebLink.kt 참고 -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="yeonggyu1110.github.io" />
+                <data android:pathPrefix="/maeil-mail-reborn/" />
+            </intent-filter>
         </activity>
 
         <!-- 홈 화면 위젯: 오늘의 질문 -->

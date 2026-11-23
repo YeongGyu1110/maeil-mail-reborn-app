@@ -21,6 +21,7 @@ import com.maeilmail.app.account.Account
 import com.maeilmail.app.account.Records
 import com.maeilmail.app.data.Library
 import com.maeilmail.app.data.Settings
+import com.maeilmail.app.data.WebLink
 import com.maeilmail.app.reminder.Reminders
 import com.maeilmail.app.ui.App
 import com.maeilmail.app.ui.theme.AppTheme
@@ -104,8 +105,11 @@ class MainActivity : ComponentActivity() {
         Records.refresh()
     }
 
+    /** 열 질문: 알림·위젯이 넘긴 ID, 또는 웹 주소(메일의 "답변 확인하기" 버튼)의 ?q= */
     private fun readOpenRequest(intent: Intent?) {
-        intent?.getStringExtra(EXTRA_QUESTION)?.let { openRequest.value = it }
+        val id = intent?.getStringExtra(EXTRA_QUESTION)
+            ?: intent?.takeIf { it.action == Intent.ACTION_VIEW }?.let { WebLink.questionId(it.data) }
+        id?.let { openRequest.value = it }
     }
 
     companion object {

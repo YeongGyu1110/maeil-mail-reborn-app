@@ -55,6 +55,7 @@ import androidx.compose.ui.window.Dialog
 import com.maeilmail.app.BuildConfig
 import com.maeilmail.app.data.Library
 import com.maeilmail.app.data.Settings
+import com.maeilmail.app.data.WebLink
 import com.maeilmail.app.reminder.Reminders
 import com.maeilmail.app.widget.TodayWidgetProvider
 import com.maeilmail.app.ui.theme.AppTheme
@@ -179,6 +180,18 @@ fun SettingsScreen(state: Library.State) {
             Spacer(Modifier.height(36.dp))
             DividerHead("앱")
             Spacer(Modifier.height(4.dp))
+            // 메일의 "답변 확인하기" 버튼(웹 주소)을 이 앱에서 열지. 안드로이드가 허락해야 하므로 그 설정 화면으로 보낸다
+            val linkOpen = remember(resumed) { WebLink.isOpenedByApp(context) }
+            if (linkOpen != null) {
+                InfoRow(
+                    "메일 링크를 앱에서 열기",
+                    if (linkOpen) "켜짐" else "켜기",
+                    sub = "메일의 '답변 확인하기'를 누르면 웹 대신 이 앱의 질문 화면이 열려요",
+                    valueColor = if (linkOpen) colors.textSub else null,
+                    onClick = { context.startActivity(WebLink.settingsIntent(context)) },
+                )
+                RowRule()
+            }
             // 화면 테마: 휴대폰 설정을 따르거나 라이트·다크로 고정한다 (상단 바의 해·달 버튼과 같은 설정)
             InfoRow("화면 테마", theme.label, onClick = { pickingTheme = true })
             RowRule()
