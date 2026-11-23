@@ -12,10 +12,15 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import com.maeilmail.app.account.Account
 import com.maeilmail.app.account.Records
 import com.maeilmail.app.data.Library
+import com.maeilmail.app.data.Settings
 import com.maeilmail.app.reminder.Reminders
 import com.maeilmail.app.ui.App
 import com.maeilmail.app.ui.theme.AppTheme
@@ -43,8 +48,22 @@ class MainActivity : ComponentActivity() {
         // 앱을 열지 않아도 6시간마다 발송 기록을 받아 알림이 빠지지 않게 한다
         SyncWorker.schedulePeriodic(this)
         thread(name = "schedule") { Reminders.schedule(applicationContext) }
+        val settings = Settings.get(this)
         setContent {
-            AppTheme {
+            val theme by settings.theme.collectAsState()
+            val dark = when (theme) {
+                Settings.Theme.SYSTEM -> isSystemInDarkTheme()
+                Settings.Theme.LIGHT -> false
+                Settings.Theme.DARK -> true
+            }
+            // 상태 표시줄·내비게이션 바 아이콘 색도 고른 테마를 따른다 (안드로이드 12 미만에서는 휴대폰 설정과 다를 수 있다)
+            LaunchedEffect(dark) {
+                enableEdgeToEdge(
+                    statusBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT) { dark },
+                    navigationBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT) { dark },
+                )
+            }
+            AppTheme(darkTheme = dark) {
                 App(openRequest = openRequest.value, onOpenHandled = { openRequest.value = null })
             }
         }

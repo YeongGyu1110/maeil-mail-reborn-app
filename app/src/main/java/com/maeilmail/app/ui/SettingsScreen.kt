@@ -60,6 +60,7 @@ import com.maeilmail.app.widget.TodayWidgetProvider
 import com.maeilmail.app.ui.theme.AppTheme
 import com.maeilmail.app.ui.theme.Radius
 import com.maeilmail.app.ui.theme.TextStyles
+import com.maeilmail.app.ui.theme.ThemeSwitch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -82,6 +83,8 @@ fun SettingsScreen(state: Library.State) {
     val batteryFree = remember(resumed) { Reminders.isIgnoringBatteryOptimizations(context) }
     val requestPermission = rememberNotificationPermissionRequest()
     var pickingTime by remember { mutableStateOf(false) }
+    var pickingTheme by remember { mutableStateOf(false) }
+    val theme by settings.theme.collectAsState()
 
     fun update(value: Settings.Notify) {
         settings.setNotify(value)
@@ -176,6 +179,9 @@ fun SettingsScreen(state: Library.State) {
             Spacer(Modifier.height(36.dp))
             DividerHead("앱")
             Spacer(Modifier.height(4.dp))
+            // 화면 테마: 휴대폰 설정을 따르거나 라이트·다크로 고정한다 (상단 바의 해·달 버튼과 같은 설정)
+            InfoRow("화면 테마", theme.label, onClick = { pickingTheme = true })
+            RowRule()
             // 홈 화면에 오늘의 질문 위젯을 놓는다 (시스템이 놓을지 묻는다). 런처가 지원하지 않으면 감춘다
             val widgets = remember { AppWidgetManager.getInstance(context) }
             if (widgets.isRequestPinAppWidgetSupported) {
@@ -189,6 +195,19 @@ fun SettingsScreen(state: Library.State) {
             }
             InfoRow("버전", BuildConfig.VERSION_NAME)
         }
+    }
+
+    if (pickingTheme) {
+        ChoiceDialog(
+            title = "화면 테마",
+            options = Settings.Theme.entries.map { it.label },
+            selected = theme.ordinal,
+            onPick = {
+                pickingTheme = false
+                ThemeSwitch.set(context, Settings.Theme.entries[it])
+            },
+            onDismiss = { pickingTheme = false },
+        )
     }
 
     if (pickingTime) {

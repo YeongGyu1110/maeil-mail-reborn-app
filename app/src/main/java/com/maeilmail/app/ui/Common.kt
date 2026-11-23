@@ -61,6 +61,7 @@ import com.maeilmail.app.ui.theme.AppTheme
 import com.maeilmail.app.ui.theme.LineIcons
 import com.maeilmail.app.ui.theme.Radius
 import com.maeilmail.app.ui.theme.TextStyles
+import com.maeilmail.app.ui.theme.ThemeSwitch
 
 /*
  * 여러 화면이 같이 쓰는 웹식 부품. 웹 base.css의 상단 바·버튼·토스트를 휴대폰 손가락 크기에 맞춰 옮겼다.
@@ -121,7 +122,21 @@ fun TopNav(
             modifier = Modifier.weight(1f),
         )
         trailing()
+        ThemeButton()
     }
+}
+
+/** 테마 전환 버튼 (웹 상단 바의 해·달 버튼): 라이트면 달, 다크면 해를 보이고 누르면 반대로 바꾼다 */
+@Composable
+private fun ThemeButton() {
+    val context = LocalContext.current
+    val dark = AppTheme.colors.isDark
+    IconBtn(
+        if (dark) LineIcons.Sun else LineIcons.Moon,
+        contentDescription = if (dark) "라이트 테마로" else "다크 테마로",
+        onClick = { ThemeSwitch.toggle(context, dark) },
+        tint = AppTheme.colors.textMuted,
+    )
 }
 
 /** 로고: 각진 초록 점 + 서비스 이름 (웹 .nav-brand) */
@@ -434,6 +449,48 @@ fun StarButton(starred: Boolean, onToggle: () -> Unit, modifier: Modifier = Modi
             tint = if (starred) colors.star else colors.textMuted,
             modifier = Modifier.size(17.dp),
         )
+    }
+}
+
+/** 여러 가지 중 하나를 고르는 창: 확인 창과 같은 모양에 행 목록. 고른 행은 옅은 초록 바탕과 "선택됨" */
+@Composable
+fun ChoiceDialog(title: String, options: List<String>, selected: Int, onPick: (Int) -> Unit, onDismiss: () -> Unit) {
+    val colors = AppTheme.colors
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .background(colors.bgPaper, Radius.control)
+                .padding(vertical = 20.dp),
+        ) {
+            Text(title, style = TextStyles.dialogTitle, color = colors.textMain, modifier = Modifier.padding(horizontal = 24.dp))
+            Spacer(Modifier.height(12.dp))
+            options.forEachIndexed { i, label ->
+                val on = i == selected
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .clip(Radius.control)
+                        .background(if (on) colors.primaryLight else Color.Transparent)
+                        .clickable(role = Role.RadioButton) { onPick(i) }
+                        .padding(horizontal = 8.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        label,
+                        style = TextStyles.body,
+                        fontWeight = if (on) FontWeight.SemiBold else null,
+                        color = colors.textMain,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (on) Text("선택됨", style = TextStyles.num, color = colors.primary)
+                }
+            }
+            Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp, top = 8.dp), horizontalArrangement = Arrangement.End) {
+                Btn("닫기", onClick = onDismiss)
+            }
+        }
     }
 }
 
