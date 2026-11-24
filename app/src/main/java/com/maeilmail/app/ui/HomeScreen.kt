@@ -1,7 +1,6 @@
 package com.maeilmail.app.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -32,7 +31,6 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -53,6 +51,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.Layout
@@ -153,84 +152,92 @@ fun HomeScreen(
         if (filter.searching) filter.closeSearch() else filter.reset()
     }
 
-    Column(Modifier.fillMaxSize().background(colors.bgCanvas).imePadding()) {
-        HomeBar(filter, signedIn = records.signedIn, onSettings = onSettings)
-        FilterChips(filter, received.size, records)
+    var menu by remember { mutableStateOf<OpenMenu?>(null) }
+    val focusManager = LocalFocusManager.current
+    Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize().background(colors.bgCanvas).imePadding()) {
+            HomeBar(filter, signedIn = records.signedIn, onSettings = onSettings)
+            FilterChips(filter, received.size, records)
 
-        Box(Modifier.weight(1f).fillMaxWidth().background(colors.bgPaper)) {
-            when {
-                !state.loaded -> Unit
-                catalog.questions.isEmpty() -> FirstLoad(state)
-                else -> {
-                    val pull = rememberPullToRefreshState()
-                    PullToRefreshBox(
-                        isRefreshing = state.syncing,
-                        onRefresh = {
-                            Library.syncNow()
-                            Records.refresh(force = true)
-                        },
-                        state = pull,
-                        modifier = Modifier.fillMaxSize(),
-                        // 둥근 새로고침 표시 대신, 당긴 만큼 차오르는 얇은 막대를 목록 위에 둔다
-                        indicator = {
-                            val f = pull.distanceFraction
-                            if (f > 0f && !state.syncing) {
-                                ProgressLine(f.coerceAtMost(1f), Modifier.align(Alignment.TopCenter))
-                            }
-                        },
-                    ) {
-                        val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-                        val todayQuestion = today.id?.let(catalog::question)
-                        val opened = today.id != null && today.id == openedId
-                        LazyColumn(
-                            state = listState,
+            Box(Modifier.weight(1f).fillMaxWidth().background(colors.bgPaper)) {
+                when {
+                    !state.loaded -> Unit
+                    catalog.questions.isEmpty() -> FirstLoad(state)
+                    else -> {
+                        val pull = rememberPullToRefreshState()
+                        PullToRefreshBox(
+                            isRefreshing = state.syncing,
+                            onRefresh = {
+                                Library.syncNow()
+                                Records.refresh(force = true)
+                            },
+                            state = pull,
                             modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(bottom = bottom + 24.dp),
+                            // 둥근 새로고침 표시 대신, 당긴 만큼 차오르는 얇은 막대를 목록 위에 둔다
+                            indicator = {
+                                val f = pull.distanceFraction
+                                if (f > 0f && !state.syncing) {
+                                    ProgressLine(f.coerceAtMost(1f), Modifier.align(Alignment.TopCenter))
+                                }
+                            },
                         ) {
-                            if (blocked != null && notify.enabled && !noticeHidden && !filter.active) {
-                                item(key = "notice") {
-                                    NoticeBar(
-                                        text = "알림이 꺼져 있어 질문이 와도 알 수 없어요",
-                                        action = "켜기",
-                                        onAction = { fix(blocked) },
-                                        onClose = { settings.setNoticeHidden(true) },
-                                    )
+                            val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                            val todayQuestion = today.id?.let(catalog::question)
+                            val opened = today.id != null && today.id == openedId
+                            LazyColumn(
+                                state = listState,
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(bottom = bottom + 24.dp),
+                            ) {
+                                if (blocked != null && notify.enabled && !noticeHidden && !filter.active) {
+                                    item(key = "notice") {
+                                        NoticeBar(
+                                            text = "알림이 꺼져 있어 질문이 와도 알 수 없어요",
+                                            action = "켜기",
+                                            onAction = { fix(blocked) },
+                                            onClose = { settings.setNoticeHidden(true) },
+                                        )
+                                    }
                                 }
-                            }
-                            if (!filter.active) {
-                                item(key = "today") {
-                                    TodayBlock(today, todayQuestion, opened, records) { onOpen(it, fullOrder, ListFilter.DEFAULT_NAME) }
+                                if (!filter.active) {
+                                    item(key = "today") {
+                                        TodayBlock(today, todayQuestion, opened, records) { onOpen(it, fullOrder, ListFilter.DEFAULT_NAME) }
+                                    }
+                                } else if (filter.query.isBlank() && !filter.received && todayQuestion != null && !opened) {
+                                    // 필터가 남아 있어도 오늘의 질문을 놓치지 않게 한 줄은 남긴다
+                                    item(key = "today") {
+                                        TodayLine(today.label, todayQuestion) { onOpen(todayQuestion, fullOrder, ListFilter.DEFAULT_NAME) }
+                                    }
                                 }
-                            } else if (filter.query.isBlank() && !filter.received && todayQuestion != null && !opened) {
-                                // 필터가 남아 있어도 오늘의 질문을 놓치지 않게 한 줄은 남긴다
-                                item(key = "today") {
-                                    TodayLine(today.label, todayQuestion) { onOpen(todayQuestion, fullOrder, ListFilter.DEFAULT_NAME) }
+                                stickyHeader(key = "head") {
+                                    ListHead(state, filter, shown = visible.size, base = base, records = records) {
+                                        focusManager.clearFocus() // 검색하던 중이면 자판을 내려 목록을 가리지 않게 한다
+                                        menu = it
+                                    }
                                 }
-                            }
-                            stickyHeader(key = "head") {
-                                ListHead(state, filter, shown = visible.size, base = base, records = records)
-                            }
-                            if (filter.received && filter.name == "받은 질문" && records.signedIn) {
-                                item(key = "progress") { StudyProgress(received, records) }
-                            }
-                            if (visible.isEmpty()) {
-                                item(key = "empty") { EmptyResult(onReset = filter::reset) }
-                            } else {
-                                questionIndex(visible, grouped = !filter.received, records = records) { onOpen(it, order, filter.name) }
+                                if (filter.received && filter.name == "받은 질문" && records.signedIn) {
+                                    item(key = "progress") { StudyProgress(received, records) }
+                                }
+                                if (visible.isEmpty()) {
+                                    item(key = "empty") { EmptyResult(onReset = filter::reset) }
+                                } else {
+                                    questionIndex(visible, grouped = !filter.received, records = records) { onOpen(it, order, filter.name) }
+                                }
                             }
                         }
                     }
                 }
-            }
-            // 저장소와 맞추는 동안 지면 맨 위에 얇은 막대를 둔다
-            if (state.syncing && catalog.questions.isNotEmpty()) {
-                val p = state.progressCount
-                ProgressLine(
-                    progress = p?.takeIf { it.second > 0 }?.let { it.first.toFloat() / it.second },
-                    modifier = Modifier.align(Alignment.TopCenter),
-                )
+                // 저장소와 맞추는 동안 지면 맨 위에 얇은 막대를 둔다
+                if (state.syncing && catalog.questions.isNotEmpty()) {
+                    val p = state.progressCount
+                    ProgressLine(
+                        progress = p?.takeIf { it.second > 0 }?.let { it.first.toFloat() / it.second },
+                        modifier = Modifier.align(Alignment.TopCenter),
+                    )
+                }
             }
         }
+        ScreenMenu(menu, onClose = { menu = null })
     }
 }
 
@@ -417,7 +424,14 @@ private fun ChipRow(modifier: Modifier, content: @Composable () -> Unit) {
  * 고른 것은 초록 이름으로 바뀌어, 목록을 내려도 무엇이 걸렸는지 보인다.
  */
 @Composable
-private fun ListHead(state: Library.State, filter: ListFilter, shown: Int, base: List<Question>, records: Records.State) {
+private fun ListHead(
+    state: Library.State,
+    filter: ListFilter,
+    shown: Int,
+    base: List<Question>,
+    records: Records.State,
+    onMenu: (OpenMenu) -> Unit,
+) {
     val colors = AppTheme.colors
     val catalog = state.catalog
     Column(Modifier.fillMaxWidth().background(colors.bgPaper)) {
@@ -433,7 +447,7 @@ private fun ListHead(state: Library.State, filter: ListFilter, shown: Int, base:
             )
             Row(Modifier.weight(1f).padding(start = 8.dp), horizontalArrangement = Arrangement.End) {
                 if (records.signedIn) {
-                    Picker(filter.level?.label, "학습 수준") { close ->
+                    Picker(filter.level?.label, "학습 수준", onMenu) { close ->
                         val counts = base.groupingBy { records.level(it.id) }.eachCount()
                         Option("모든 수준", base.size, selected = filter.level == null) { filter.level = null; close() }
                         for (level in Records.Level.entries) {
@@ -444,7 +458,7 @@ private fun ListHead(state: Library.State, filter: ListFilter, shown: Int, base:
                         }
                     }
                 }
-                Picker(filter.category.ifEmpty { null }, "카테고리", Modifier.weight(1f, fill = false)) { close ->
+                Picker(filter.category.ifEmpty { null }, "카테고리", onMenu, Modifier.weight(1f, fill = false)) { close ->
                     val counts = base.groupingBy { it.category }.eachCount()
                     Option("모든 카테고리", base.size, selected = filter.category.isEmpty()) { filter.category = ""; close() }
                     for (area in AREAS) {
@@ -470,47 +484,42 @@ private fun ListHead(state: Library.State, filter: ListFilter, shown: Int, base:
     }
 }
 
-/** 누르면 아래로 펼쳐지는 고르기 버튼 (웹 .cat-trigger + .cat-menu) */
+/** 누르면 아래로 펼쳐지는 고르기 버튼 (웹 .cat-trigger). 펼친 목록은 화면이 그린다 (ScreenMenu) */
 @Composable
-private fun Picker(value: String?, label: String, modifier: Modifier = Modifier, menu: @Composable (close: () -> Unit) -> Unit) {
+private fun Picker(
+    value: String?,
+    label: String,
+    onMenu: (OpenMenu) -> Unit,
+    modifier: Modifier = Modifier,
+    menu: @Composable (close: () -> Unit) -> Unit,
+) {
     val colors = AppTheme.colors
-    var open by remember { mutableStateOf(false) }
-    Box(modifier) {
-        Row(
-            Modifier
-                .heightIn(min = 48.dp)
-                .clip(Radius.control)
-                .clickable(role = Role.DropdownList, onClickLabel = "$label 고르기") { open = true }
-                .padding(horizontal = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Text(
-                value ?: label,
-                style = TextStyles.button.copy(fontSize = 13.5.sp),
-                fontWeight = if (value != null) FontWeight.Bold else FontWeight.Medium,
-                color = if (value != null) colors.primary else colors.textSub,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
-            )
-            Icon(
-                LineIcons.ChevronDown,
-                contentDescription = null,
-                tint = if (value != null) colors.primary else colors.textMuted,
-                modifier = Modifier.size(15.dp),
-            )
-        }
-        // 지면과 같은 색이라 옅은 테두리와 그림자로 떠 있는 것을 드러낸다 (웹 .cat-menu)
-        DropdownMenu(
-            expanded = open,
-            onDismissRequest = { open = false },
-            containerColor = colors.bgPaper,
-            border = BorderStroke(1.dp, colors.rule),
-            shadowElevation = 8.dp,
-            shape = Radius.control,
-            modifier = Modifier.widthIn(min = 200.dp),
-        ) { menu { open = false } }
+    val bounds = remember { arrayOf(Rect.Zero) }
+    Row(
+        modifier
+            .trackBounds { bounds[0] = it }
+            .heightIn(min = 48.dp)
+            .clip(Radius.control)
+            .clickable(role = Role.DropdownList, onClickLabel = "$label 고르기") { onMenu(OpenMenu(label, bounds[0], menu)) }
+            .padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            value ?: label,
+            style = TextStyles.button.copy(fontSize = 13.5.sp),
+            fontWeight = if (value != null) FontWeight.Bold else FontWeight.Medium,
+            color = if (value != null) colors.primary else colors.textSub,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
+        Icon(
+            LineIcons.ChevronDown,
+            contentDescription = null,
+            tint = if (value != null) colors.primary else colors.textMuted,
+            modifier = Modifier.size(15.dp),
+        )
     }
 }
 
