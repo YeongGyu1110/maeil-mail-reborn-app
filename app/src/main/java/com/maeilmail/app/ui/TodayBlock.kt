@@ -64,22 +64,22 @@ fun rememberToday(state: Library.State): Today {
 }
 
 /**
- * 첫 화면 맨 위의 오늘의 질문 (웹 .today: 왼쪽 세로줄 하나로만 표시하는 머리글).
- * 아직 답변을 열지 않았으면 "답변 확인하기" 버튼을 두고, 열어 본 뒤에는 제목만 남겨 목록을 끌어올린다.
- * 오늘 질문이 없을 때(알림 시각 전, 쉬는 날)는 그 까닭을 보이고, 열지 않은 지난 질문이 있으면 그것을 위에 둔다.
+ * 첫 화면 맨 위의 오늘의 질문 (웹 .today: 왼쪽 세로줄 하나로만 표시하는 머리글). 따로 버튼을 두지 않고 전체를 누르면 답변이 열린다.
+ * 오늘 질문이 없을 때(알림 시각 전, 쉬는 날)는 그 까닭을 보이고, 아직 답변을 열지 않은 지난 질문이 있으면 그것을 위에 둔다.
  */
 @Composable
 fun TodayBlock(today: Today, question: Question?, opened: Boolean, records: Records.State, onOpen: (Question) -> Unit) {
     val colors = AppTheme.colors
     Column(Modifier.padding(top = 24.dp, bottom = 14.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        if (question != null && opened && today.isToday) {
+        if (question != null && (today.isToday || !opened)) {
             Column(
                 Modifier
                     .padding(horizontal = PaperPadding)
                     .fillMaxWidth()
+                    .sideLine(colors.primary)
                     .clip(Radius.small)
-                    .clickable(role = Role.Button, onClickLabel = "질문 열기") { onOpen(question) }
-                    .sideLine(colors.primary),
+                    .clickable(role = Role.Button, onClickLabel = "답변 확인하기") { onOpen(question) }
+                    .sidePadding(),
             ) {
                 TodayTop(today.label, question, records)
                 Text(
@@ -91,22 +91,11 @@ fun TodayBlock(today: Today, question: Question?, opened: Boolean, records: Reco
                     color = colors.textMain,
                 )
             }
-        } else if (question != null && !opened) {
-            Column(Modifier.padding(horizontal = PaperPadding).fillMaxWidth().sideLine(colors.primary)) {
-                TodayTop(today.label, question, records)
-                Text(question.title, style = TextStyles.todayTitle, color = colors.textMain)
-                if (question.categoryName.isNotEmpty()) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(question.categoryName, style = TextStyles.small, color = colors.textMuted)
-                }
-                Spacer(Modifier.height(14.dp))
-                Btn("답변 확인하기 →", onClick = { onOpen(question) }, kind = BtnKind.Primary)
-            }
         }
         val idle = today.idle
             ?: if (question == null && today.id != null) Today.Idle("오늘의 질문 · ${today.id.uppercase()}", "질문 목록을 아직 받지 못했어요") else null
         if (idle != null) {
-            Column(Modifier.padding(horizontal = PaperPadding).fillMaxWidth().sideLine(colors.ruleStrong)) {
+            Column(Modifier.padding(horizontal = PaperPadding).fillMaxWidth().sideLine(colors.ruleStrong).sidePadding()) {
                 Text(idle.title, style = TextStyles.button, color = colors.textSub)
                 if (idle.body != null) {
                     Spacer(Modifier.height(2.dp))
@@ -125,9 +114,10 @@ fun TodayLine(label: String, question: Question, onClick: () -> Unit) {
         Modifier
             .padding(horizontal = PaperPadding, vertical = 8.dp)
             .fillMaxWidth()
-            .clip(Radius.small)
-            .clickable(role = Role.Button, onClickLabel = "질문 열기", onClick = onClick)
             .sideLine(colors.primary)
+            .clip(Radius.small)
+            .clickable(role = Role.Button, onClickLabel = "답변 확인하기", onClick = onClick)
+            .sidePadding()
             .heightIn(min = 44.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -156,10 +146,11 @@ private fun TodayTop(label: String, question: Question, records: Records.State) 
     Spacer(Modifier.height(2.dp))
 }
 
-/** 왼쪽 세로줄 (웹 .today의 border-left 2px) */
-private fun Modifier.sideLine(color: Color): Modifier = this
-    .drawBehind { drawRect(color, size = Size(2.dp.toPx(), size.height)) }
-    .padding(start = 16.dp, top = 2.dp, bottom = 2.dp)
+/** 왼쪽 세로줄 (웹 .today의 border-left 2px). 누름 바탕의 둥근 모서리에 잘리지 않게 clip보다 먼저 쓴다 */
+private fun Modifier.sideLine(color: Color): Modifier = drawBehind { drawRect(color, size = Size(2.dp.toPx(), size.height)) }
+
+/** 세로줄과 글 사이 (웹 .today의 padding) */
+private fun Modifier.sidePadding(): Modifier = padding(start = 16.dp, top = 2.dp, bottom = 2.dp)
 
 /**
  * 첫 화면의 안내: 알림이 꺼져 있어 질문이 와도 알 수 없을 때. 닫을 수 있고, 알림을 다시 켜면 닫은 것을 잊는다.

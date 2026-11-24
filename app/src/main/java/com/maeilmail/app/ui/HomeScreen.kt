@@ -318,7 +318,7 @@ private fun SearchField(
     }
 }
 
-/** 자주 쓰는 필터: 늘 보이고 한 번 눌러 걸고 다시 눌러 푼다. 고른 칩은 진하게 칠한다 */
+/** 자주 쓰는 필터: 늘 보이고 한 번 눌러 걸고 다시 눌러 푼다. 고른 칩은 진하게 칠한다. 학습 수준은 목록 머리에서 고르므로 여기 두지 않는다 */
 @Composable
 private fun FilterChips(filter: ListFilter, receivedCount: Int, records: Records.State) {
     val colors = AppTheme.colors
@@ -328,13 +328,6 @@ private fun FilterChips(filter: ListFilter, receivedCount: Int, records: Records
             Chip("받은 질문", receivedCount, filter.received, onToggle = { filter.received = !filter.received })
         }
         if (records.signedIn) {
-            val review = filter.level == Records.Level.REVIEW
-            Chip(
-                "복습 필요",
-                records.items.values.count { it.level == Records.Level.REVIEW },
-                review,
-                onToggle = { filter.level = if (review) null else Records.Level.REVIEW },
-            ) { Box(Modifier.size(7.dp).background(colors.reviewBar, Radius.dot)) }
             Chip("별표", records.items.values.count { it.starred }, filter.starred, onToggle = { filter.starred = !filter.starred }) { tint ->
                 Icon(
                     if (filter.starred) LineIcons.StarFilled else LineIcons.Star,

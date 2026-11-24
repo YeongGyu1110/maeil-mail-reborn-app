@@ -92,7 +92,7 @@ fun App(openRequest: OpenRequest?, onOpenHandled: () -> Unit) {
         if (openRequest != null && state.loaded && route != Route.Question) handle(openRequest)
     }
 
-    // 받은 질문의 답변을 열었으면 첫 화면의 오늘의 질문을 작게 줄인다 (어느 길로 열었든)
+    // 받은 질문의 답변을 어느 길로든 열었으면 기억해 둔다 (첫 화면과 위젯에서 지난 질문으로 다시 보이지 않게)
     LaunchedEffect(route, questionId, today.id) {
         if (route == Route.Question && questionId == today.id && settings.opened.value != questionId) {
             settings.setOpened(questionId)

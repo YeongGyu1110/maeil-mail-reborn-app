@@ -149,7 +149,7 @@ fun AccountSection() {
 }
 
 /**
- * GitHub 프로필 사진 (웹 .account-user img: 모서리 2, 받기 전에는 옅은 면).
+ * GitHub 프로필 사진 (웹 .account-user img: 모서리 2). 배경이 투명한 사진도 있으므로 뒤에 면을 깔지 않는다.
  * 사진을 받지 못했으면 아이디의 첫 글자를 보인다.
  */
 @Composable
@@ -171,7 +171,7 @@ private fun ProfilePhoto(user: Account.User) {
         Modifier
             .size(36.dp)
             .clip(Radius.small)
-            .background(if (shown == null && done) colors.primaryLight else colors.bgHover),
+            .background(if (shown == null && done) colors.primaryLight else Color.Transparent),
         contentAlignment = Alignment.Center,
     ) {
         if (shown != null) {

@@ -13,7 +13,7 @@ import java.time.LocalTime
  * - 알림: 켜기, 시각(한국 시간, 기본 07:00)
  * - 마지막으로 알린 발송일: 같은 날 두 번 알리지 않도록
  * - 화면 테마: 휴대폰 설정을 따르거나 라이트·다크로 고정
- * - 답변을 열어 본 마지막 받은 질문: 첫 화면의 오늘의 질문을 작게 줄인다
+ * - 답변을 열어 본 마지막 받은 질문: 첫 화면과 위젯에서 지난 질문을 더 보이지 않게 한다
  */
 class Settings private constructor(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
