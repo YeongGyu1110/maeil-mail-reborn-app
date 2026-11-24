@@ -11,12 +11,16 @@ object Format {
     private val day = DateTimeFormatter.ofPattern("M월 d일 (E)", Locale.KOREAN)
     private val dayLong = DateTimeFormatter.ofPattern("M월 d일 EEEE", Locale.KOREAN)
     private val time = DateTimeFormatter.ofPattern("HH:mm")
+    private val weekday = DateTimeFormatter.ofPattern("EEEE", Locale.KOREAN)
 
     /** 11월 23일 (월) */
     fun day(date: LocalDate): String = date.format(day)
 
     /** 11월 21일 토요일 */
     fun dayLong(date: LocalDate): String = date.format(dayLong)
+
+    /** 금요일 */
+    fun weekday(date: LocalDate): String = date.format(weekday)
 
     /** 07:00 */
     fun time(t: LocalTime): String = t.format(time)
