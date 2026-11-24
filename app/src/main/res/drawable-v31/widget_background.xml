@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 위젯 바탕 (안드로이드 12 이상): 웹의 지면색, 모서리는 런처가 정한 값 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/widget_paper" />
+    <corners android:radius="@android:dimen/system_app_widget_background_radius" />
+</shape>

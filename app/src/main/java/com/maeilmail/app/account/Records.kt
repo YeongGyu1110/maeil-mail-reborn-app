@@ -1,7 +1,10 @@
 package com.maeilmail.app.account
 
 import android.content.Context
+import com.maeilmail.app.widget.TodayWidget
 import com.maeilmail.app.work.RecordsWorker
+import java.io.File
+import java.io.IOException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -19,8 +22,6 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.File
-import java.io.IOException
 
 /**
  * 학습 기록(이해도·별표·메모)과 메모 저장소 설정. 웹과 같은 Firestore 문서를 함께 쓴다.
@@ -124,6 +125,17 @@ object Records {
         readFiles()
         publish(loaded = server.isNotEmpty() || memoRepo != null)
         refresh()
+    }
+
+    /** 위젯이 보일 기록: 앱이 떠 있으면 지금 상태, 아니면 기기에 둔 사본을 읽는다 (서버에는 묻지 않는다) */
+    fun peek(context: Context): State {
+        if (::dir.isInitialized) return _state.value
+        Account.init(context)
+        if (!signedIn()) return State()
+        val files = File(context.applicationContext.filesDir, "records")
+        val items = runCatching { JSONObject(File(files, "snapshot.json").readText()).optJSONObject("items").toFieldMap() }.getOrDefault(emptyMap())
+        val patch = runCatching { JSONObject(File(files, "pending.json").readText()).toFieldMap() }.getOrDefault(emptyMap())
+        return State(items = toItems(applyPatch(items, patch)), signedIn = true, loaded = true)
     }
 
     // ---------- 읽기 ----------
@@ -421,6 +433,7 @@ object Records {
         loadedAt = 0
         scope.launch { io { dir.listFiles()?.forEach(File::delete) } }
         _state.value = State()
+        refreshWidget()
     }
 
     fun clearError() = _state.update { it.copy(error = null) }
@@ -435,21 +448,35 @@ object Records {
         val merged = applyPatch(server, pending)
         _state.update {
             it.copy(
-                items = merged.mapValues { (_, f) ->
-                    Item(
-                        level = Level.of(f["level"]),
-                        starred = f["starred"] == true,
-                        memo = (f["memo"] as? String)?.takeIf { memo -> memo.isNotEmpty() },
-                        memoAt = (f["memoAt"] as? Number)?.toLong(),
-                        memoUncommitted = f["memoUncommitted"] == true,
-                    )
-                }.filterValues { item -> item != Item() },
+                items = toItems(merged),
                 memoRepo = memoRepo,
                 signedIn = signedIn(),
                 loaded = loaded,
                 pending = pending.size,
             )
         }
+        refreshWidget()
+    }
+
+    private fun toItems(fields: Map<String, Map<String, Any?>>): Map<String, Item> = fields.mapValues { (_, f) ->
+        Item(
+            level = Level.of(f["level"]),
+            starred = f["starred"] == true,
+            memo = (f["memo"] as? String)?.takeIf { memo -> memo.isNotEmpty() },
+            memoAt = (f["memoAt"] as? Number)?.toLong(),
+            memoUncommitted = f["memoUncommitted"] == true,
+        )
+    }.filterValues { item -> item != Item() }
+
+    /** 위젯에 보이는 숫자가 바뀌었을 때만 위젯을 다시 그린다 */
+    private var widgetShows: List<Any>? = null
+
+    private fun refreshWidget() {
+        val s = _state.value
+        val shows = listOf(s.signedIn, s.items.values.count { it.level == Level.REVIEW }, s.items.values.count { it.starred })
+        if (shows == widgetShows) return
+        widgetShows = shows
+        scope.launch { io { runCatching { TodayWidget.refresh(appContext) } } }
     }
 
     /** 기록에 변경을 덮는다. 값이 null이면 그 필드를 지우고, 남은 필드가 없으면 질문 항목째 뺀다 */
