@@ -2,6 +2,7 @@ package com.maeilmail.app.ui
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -31,6 +33,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -41,14 +46,18 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.maeilmail.app.account.Account
+import com.maeilmail.app.account.Avatar
 import com.maeilmail.app.account.GitHubApi
 import com.maeilmail.app.account.GitHubAuth
 import com.maeilmail.app.account.Records
 import com.maeilmail.app.ui.theme.AppTheme
+import com.maeilmail.app.ui.theme.LineIcons
 import com.maeilmail.app.ui.theme.Radius
 import com.maeilmail.app.ui.theme.TextStyles
 import java.time.Instant
 import java.time.ZoneId
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * 설정의 GitHub 칸: 로그인(Device Flow)·로그아웃과 메모 저장소. 메모 저장소는 이 계정의 설정이라 같은 칸에 둔다.
@@ -59,6 +68,7 @@ fun AccountSection() {
     val colors = AppTheme.colors
     val account by Account.state.collectAsState()
     val records by Records.state.collectAsState()
+    val context = LocalContext.current
     var confirmSignOut by remember { mutableStateOf(false) }
     var pickingRepo by remember { mutableStateOf(false) }
     val user = account.user
@@ -72,14 +82,16 @@ fun AccountSection() {
                 "로그인하면 웹과 같은 이해도, 별표, 메모를 함께 써요. 처음 한 번만 하면 돼요.",
                 style = TextStyles.small,
                 color = colors.textMuted,
-                modifier = Modifier.padding(horizontal = PaperPadding, vertical = 10.dp),
+                modifier = Modifier.padding(start = PaperPadding, end = PaperPadding, top = 14.dp),
             )
+            // 기기마다 한 번 누르면 끝나는 버튼이라 가장 진한 색(채운 초록)을 쓰지 않는다 (웹과 같다).
+            // 글자형 버튼이라 안쪽 여백만큼 당겨 아이콘을 글과 같은 세로줄에 맞춘다
             Btn(
                 if (account.busy) "코드를 받는 중…" else "GitHub로 로그인",
                 onClick = Account::signIn,
-                kind = BtnKind.Primary,
                 enabled = !account.busy,
-                modifier = Modifier.padding(horizontal = PaperPadding),
+                icon = LineIcons.GitHub,
+                modifier = Modifier.padding(horizontal = PaperPadding - 16.dp),
             )
         }
         else -> {
@@ -87,9 +99,7 @@ fun AccountSection() {
                 Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(start = PaperPadding, end = PaperPadding - 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(Modifier.size(36.dp).background(colors.primaryLight, Radius.small), contentAlignment = Alignment.Center) {
-                    Text(user.login.take(1).uppercase(), style = TextStyles.todayTitle, color = colors.primary)
-                }
+                ProfilePhoto(user)
                 Spacer(Modifier.width(12.dp))
                 Text(
                     user.login,
@@ -131,11 +141,49 @@ fun AccountSection() {
             onConfirm = {
                 confirmSignOut = false
                 Account.signOut()
+                Records.launch { withContext(Dispatchers.IO) { Avatar.clear(context) } }
             },
             onDismiss = { confirmSignOut = false },
         )
     }
 }
+
+/**
+ * GitHub 프로필 사진 (웹 .account-user img: 모서리 2, 받기 전에는 옅은 면).
+ * 사진을 받지 못했으면 아이디의 첫 글자를 보인다.
+ */
+@Composable
+private fun ProfilePhoto(user: Account.User) {
+    val colors = AppTheme.colors
+    val context = LocalContext.current.applicationContext
+    val id = user.githubId?.takeIf { it.isNotEmpty() && it.all(Char::isDigit) }
+    var photo by remember(id) { mutableStateOf(lastPhoto?.takeIf { it.first == id }?.second) }
+    var done by remember(id) { mutableStateOf(id == null) }
+    LaunchedEffect(id) {
+        if (id == null) return@LaunchedEffect
+        if (photo == null) photo = withContext(Dispatchers.IO) { Avatar.cached(context, id) }?.asImageBitmap()
+        withContext(Dispatchers.IO) { Avatar.refresh(context, id) }?.let { photo = it.asImageBitmap() }
+        photo?.let { lastPhoto = id to it }
+        done = true
+    }
+    val shown = photo
+    Box(
+        Modifier
+            .size(36.dp)
+            .clip(Radius.small)
+            .background(if (shown == null && done) colors.primaryLight else colors.bgHover),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (shown != null) {
+            Image(shown, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        } else if (done) {
+            Text(user.login.take(1).uppercase(), style = TextStyles.todayTitle, color = colors.primary)
+        }
+    }
+}
+
+/** 마지막으로 보인 사진 (GitHub 번호, 사진). 설정을 다시 열 때 바로 보인다 */
+private var lastPhoto: Pair<String, ImageBitmap>? = null
 
 /**
  * 메모 저장소 고르기 (웹의 저장소 선택 창과 같다): GitHub App을 설치한 저장소 중 포크·보관 저장소를 뺀 목록.

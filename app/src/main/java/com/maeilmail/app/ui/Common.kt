@@ -184,6 +184,7 @@ fun Btn(
     kind: BtnKind = BtnKind.Text,
     enabled: Boolean = true,
     contentColor: Color? = null,
+    icon: ImageVector? = null,
 ) {
     val colors = AppTheme.colors
     val background = when (kind) {
@@ -198,7 +199,7 @@ fun Btn(
         BtnKind.Danger -> if (colors.isDark) Color(0xFF1F0D0D) else Color.White
         else -> colors.textSub
     }
-    Box(
+    Row(
         modifier
             .alpha(if (enabled) 1f else 0.45f)
             .heightIn(min = 48.dp)
@@ -206,8 +207,10 @@ fun Btn(
             .background(background)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .padding(horizontal = 16.dp),
-        contentAlignment = Alignment.Center,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
     ) {
+        if (icon != null) Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(16.dp))
         Text(text, style = TextStyles.button, color = color, maxLines = 1)
     }
 }
