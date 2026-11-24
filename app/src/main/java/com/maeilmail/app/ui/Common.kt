@@ -148,6 +148,7 @@ fun IconBtn(
     modifier: Modifier = Modifier,
     tint: Color = AppTheme.colors.textSub,
     enabled: Boolean = true,
+    iconSize: Dp = 20.dp,
 ) {
     Box(
         modifier
@@ -157,7 +158,7 @@ fun IconBtn(
             .clickable(enabled = enabled, role = Role.Button, onClickLabel = contentDescription, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = contentDescription, tint = tint, modifier = Modifier.size(20.dp))
+        Icon(icon, contentDescription = contentDescription, tint = tint, modifier = Modifier.size(iconSize))
     }
 }
 

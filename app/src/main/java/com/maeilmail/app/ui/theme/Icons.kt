@@ -21,6 +21,9 @@ object LineIcons {
     val ArrowLeft = icon("ArrowLeft", "M19 12H5", "M12 19l-7-7 7-7")
     val ArrowRight = icon("ArrowRight", "M5 12h14", "M12 5l7 7-7 7")
 
+    /** 최근 검색 */
+    val Clock = icon("Clock", "M22 12a10 10 0 1 1-20 0a10 10 0 1 1 20 0z", "M12 6v6l4 2")
+
     /** 설정 */
     val Sliders = icon(
         "Sliders",

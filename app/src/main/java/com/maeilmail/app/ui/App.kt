@@ -39,11 +39,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** 화면. 뒤에 있는 것이 위에 쌓이는 화면이다 */
-private enum class Route { Home, Question, Settings }
+private enum class Route { Home, Search, Question, Settings }
 
 /**
- * 앱의 화면 전환: 첫 화면(오늘의 질문과 목록) 위에 질문 화면과 설정을 연다.
- * 화면을 돌려도 보던 화면·질문·검색어가 남는다.
+ * 앱의 화면 전환: 첫 화면(오늘의 질문과 목록) 위에 검색·질문·설정을 연다.
+ * 화면을 돌려도 보던 화면·질문·검색어가 남고, 검색 결과에서 연 질문은 뒤로 가면 그 결과로 돌아온다.
  *
  * openRequest: 알림·위젯·메일 링크로 열어 달라고 한 것. 열고 나면 onOpenHandled로 지운다.
  */
@@ -62,13 +62,24 @@ fun App(openRequest: OpenRequest?, onOpenHandled: () -> Unit) {
     var order by rememberSaveable { mutableStateOf(arrayListOf<String>()) }
     // 질문 화면의 뒤로 가기에 보일, 질문을 연 목록의 이름
     var origin by rememberSaveable { mutableStateOf(ListFilter.DEFAULT_NAME) }
+    // 질문 화면에서 뒤로 가면 돌아갈 화면 (첫 화면 또는 검색)
+    var questionBack by rememberSaveable { mutableStateOf(Route.Home) }
+    var query by rememberSaveable { mutableStateOf("") }
+    val resultState = rememberLazyListState()
     val snackbar = remember { SnackbarHostState() }
 
-    fun openQuestion(id: String, ids: List<String>, from: String) {
+    fun openQuestion(id: String, ids: List<String>, from: String, back: Route = Route.Home) {
         order = ArrayList(ids)
         origin = from
         questionId = id
+        questionBack = back
         route = Route.Question
+    }
+
+    /** 검색어를 바꾸면 결과를 맨 위부터 보인다 */
+    fun setQuery(value: String) {
+        if (value.trim() != query.trim()) scope.launch { resultState.scrollToItem(0) }
+        query = value
     }
 
     /** 앱 밖에서 열어 달라고 한 화면으로 간다. 질문 화면으로 바로 열면 이전·다음은 전체 목록 순서를 따른다 */
@@ -135,7 +146,19 @@ fun App(openRequest: OpenRequest?, onOpenHandled: () -> Unit) {
                     filter = filter,
                     listState = listState,
                     onOpen = { q, ids, from -> openQuestion(q.id, ids, from) },
+                    onSearch = {
+                        query = ""
+                        route = Route.Search
+                    },
                     onSettings = { route = Route.Settings },
+                )
+                Route.Search -> SearchScreen(
+                    state = state,
+                    query = query,
+                    onQuery = ::setQuery,
+                    listState = resultState,
+                    onOpen = { q, ids, from -> openQuestion(q.id, ids, from, back = Route.Search) },
+                    onBack = { route = Route.Home },
                 )
                 Route.Question -> QuestionScreen(
                     state = state,
@@ -143,7 +166,7 @@ fun App(openRequest: OpenRequest?, onOpenHandled: () -> Unit) {
                     origin = origin,
                     order = order,
                     onNavigate = { questionId = it },
-                    onBack = { route = Route.Home },
+                    onBack = { route = questionBack },
                     interrupt = if (openRequest != null && state.loaded) ({ handle(openRequest) }) else null,
                     onStay = onOpenHandled,
                 )

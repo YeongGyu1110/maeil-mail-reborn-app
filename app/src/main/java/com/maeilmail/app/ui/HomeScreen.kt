@@ -3,10 +3,7 @@ package com.maeilmail.app.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,7 +16,6 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -28,9 +24,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -49,17 +42,12 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
@@ -91,6 +79,7 @@ fun HomeScreen(
     filter: ListFilter,
     listState: LazyListState,
     onOpen: (question: Question, order: List<String>, from: String) -> Unit,
+    onSearch: () -> Unit,
     onSettings: () -> Unit,
 ) {
     val colors = AppTheme.colors
@@ -124,39 +113,33 @@ fun HomeScreen(
         filter.starred = false
     }
 
-    val search = remember(catalog.synonyms) { Library.search() }
-    val matcher = remember(search, filter.query) { search.matcher(filter.query) }
     val base = remember(catalog, received, filter.received) {
         if (filter.received) received.mapNotNull(catalog::question) else catalog.questions
     }
-    val visible = remember(base, matcher, filter.category, filter.level, filter.starred, records.items) {
+    val visible = remember(base, filter.category, filter.level, filter.starred, records.items) {
         base.filter { q ->
             (filter.category.isEmpty() || q.category == filter.category) &&
                 (filter.level == null || records.level(q.id) == filter.level) &&
-                (!filter.starred || records.item(q.id).starred) &&
-                search.matches(matcher, q, records.item(q.id).memo.orEmpty())
+                (!filter.starred || records.item(q.id).starred)
         }
     }
     val order = remember(visible) { visible.map { it.id } }
     val fullOrder = remember(catalog) { catalog.questions.map { it.id } }
 
-    // 검색어나 필터를 바꾸면 목록 맨 위로
+    // 필터를 바꾸면 목록 맨 위로
     LaunchedEffect(filter) {
-        snapshotFlow { listOf(filter.query, filter.category, filter.level, filter.starred, filter.received) }
+        snapshotFlow { listOf(filter.category, filter.level, filter.starred, filter.received) }
             .drop(1)
             .collect { listState.scrollToItem(0) }
     }
 
-    // 뒤로 가기: 검색 → 필터 → 앱 나가기
-    BackHandler(enabled = filter.searching || filter.active) {
-        if (filter.searching) filter.closeSearch() else filter.reset()
-    }
+    // 뒤로 가기: 필터 → 앱 나가기
+    BackHandler(enabled = filter.active, onBack = filter::reset)
 
     var menu by remember { mutableStateOf<OpenMenu?>(null) }
-    val focusManager = LocalFocusManager.current
     Box(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize().background(colors.bgCanvas).imePadding()) {
-            HomeBar(filter, signedIn = records.signedIn, onSettings = onSettings)
+        Column(Modifier.fillMaxSize().background(colors.bgCanvas)) {
+            HomeBar(onBrand = filter::reset, onSearch = onSearch, onSettings = onSettings)
             FilterChips(filter, received.size, records)
 
             Box(Modifier.weight(1f).fillMaxWidth().background(colors.bgPaper)) {
@@ -203,17 +186,14 @@ fun HomeScreen(
                                     item(key = "today") {
                                         TodayBlock(today, todayQuestion, opened, records) { onOpen(it, fullOrder, ListFilter.DEFAULT_NAME) }
                                     }
-                                } else if (filter.query.isBlank() && !filter.received && todayQuestion != null && !opened) {
+                                } else if (!filter.received && todayQuestion != null && !opened) {
                                     // 필터가 남아 있어도 오늘의 질문을 놓치지 않게 한 줄은 남긴다
                                     item(key = "today") {
                                         TodayLine(today.label, todayQuestion) { onOpen(todayQuestion, fullOrder, ListFilter.DEFAULT_NAME) }
                                     }
                                 }
                                 stickyHeader(key = "head") {
-                                    ListHead(state, filter, shown = visible.size, base = base, records = records) {
-                                        focusManager.clearFocus() // 검색하던 중이면 자판을 내려 목록을 가리지 않게 한다
-                                        menu = it
-                                    }
+                                    ListHead(state, filter, shown = visible.size, base = base, records = records) { menu = it }
                                 }
                                 if (filter.received && filter.name == "받은 질문" && records.signedIn) {
                                     item(key = "progress") { StudyProgress(received, records) }
@@ -241,87 +221,14 @@ fun HomeScreen(
     }
 }
 
-/** 상단 바: 평소에는 로고·검색·설정, 검색 아이콘을 누르면 그 자리가 검색창이 된다 */
+/** 상단 바: 로고(누르면 필터를 풀고 처음 목록으로), 검색 화면, 설정 */
 @Composable
-private fun HomeBar(filter: ListFilter, signedIn: Boolean, onSettings: () -> Unit) {
-    val focus = remember { FocusRequester() }
-    // 아이콘을 눌러 열 때만 자판을 올린다 (질문을 보고 돌아왔을 때는 올리지 않는다)
-    var takeFocus by remember { mutableStateOf(false) }
+private fun HomeBar(onBrand: () -> Unit, onSearch: () -> Unit, onSettings: () -> Unit) {
     TopBar {
-        if (filter.searching) {
-            IconBtn(LineIcons.ArrowLeft, contentDescription = "검색 닫기", onClick = filter::closeSearch)
-            SearchField(
-                filter.query,
-                placeholder = if (signedIn) "질문, 키워드, 내 메모 검색" else "질문, 키워드 검색",
-                onChange = { filter.query = it },
-                focus = focus,
-                modifier = Modifier.weight(1f),
-            )
-            Spacer(Modifier.width(8.dp))
-            LaunchedEffect(Unit) {
-                if (takeFocus) focus.requestFocus()
-                takeFocus = false
-            }
-        } else {
-            Brand(onClick = filter::reset)
-            Spacer(Modifier.weight(1f))
-            IconBtn(
-                LineIcons.Search,
-                contentDescription = "질문 검색",
-                onClick = {
-                    takeFocus = true
-                    filter.searching = true
-                },
-            )
-            IconBtn(LineIcons.Sliders, contentDescription = "설정", onClick = onSettings)
-        }
-    }
-}
-
-/** 검색창: 지면색 면, 모서리 4dp, 적는 중이면 초록 테두리 (웹 .search input) */
-@Composable
-private fun SearchField(
-    query: String,
-    placeholder: String,
-    onChange: (String) -> Unit,
-    focus: FocusRequester,
-    modifier: Modifier = Modifier,
-) {
-    val colors = AppTheme.colors
-    val focusManager = LocalFocusManager.current
-    val interaction = remember { MutableInteractionSource() }
-    val focused by interaction.collectIsFocusedAsState()
-    Row(
-        modifier
-            .heightIn(min = 48.dp)
-            .background(colors.bgPaper, Radius.control)
-            .then(if (focused) Modifier.border(1.5.dp, colors.primary, Radius.control) else Modifier)
-            .padding(start = 13.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(LineIcons.Search, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(17.dp))
-        Spacer(Modifier.width(10.dp))
-        Box(Modifier.weight(1f).padding(vertical = 8.dp)) {
-            if (query.isEmpty()) {
-                Text(placeholder, style = TextStyles.body, color = colors.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            BasicTextField(
-                value = query,
-                onValueChange = onChange,
-                singleLine = true,
-                textStyle = TextStyles.body.copy(color = colors.textMain),
-                cursorBrush = SolidColor(colors.primary),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
-                interactionSource = interaction,
-                modifier = Modifier.fillMaxWidth().focusRequester(focus),
-            )
-        }
-        if (query.isNotEmpty()) {
-            IconBtn(LineIcons.Close, contentDescription = "검색어 지우기", onClick = { onChange("") }, tint = colors.textMuted)
-        } else {
-            Spacer(Modifier.width(10.dp))
-        }
+        Brand(onClick = onBrand)
+        Spacer(Modifier.weight(1f))
+        IconBtn(LineIcons.Search, contentDescription = "질문 검색", onClick = onSearch)
+        IconBtn(LineIcons.Sliders, contentDescription = "설정", onClick = onSettings)
     }
 }
 
@@ -330,7 +237,7 @@ private fun SearchField(
 private fun FilterChips(filter: ListFilter, receivedCount: Int, records: Records.State) {
     val colors = AppTheme.colors
     ChipRow(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 12.dp)) {
-        Chip("전체", count = null, pressed = !filter.narrowed, onToggle = filter::clearScopes)
+        Chip("전체", count = null, pressed = !filter.active, onToggle = filter::reset)
         if (receivedCount > 0) {
             Chip("받은 질문", receivedCount, filter.received, onToggle = { filter.received = !filter.received })
         }
