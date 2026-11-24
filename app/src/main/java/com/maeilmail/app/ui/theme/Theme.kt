@@ -27,7 +27,7 @@ import com.maeilmail.app.R
  * 이름도 웹과 맞춰 두어 웹에서 색을 바꾸면 같은 이름을 찾아 고친다.
  *
  * 쓰임은 웹과 같다: 캔버스(bgCanvas)는 책상, 그 위의 지면(bgPaper)이 문서다.
- * 상단 바·아래 탭은 캔버스에, 내용은 지면에 둔다.
+ * 상단 바·필터·아래 막대는 캔버스에, 내용은 지면에 둔다.
  */
 @Immutable
 data class AppColors(
@@ -110,6 +110,8 @@ object AppTheme {
  */
 object Radius {
     val control = RoundedCornerShape(4.dp)
+    /** 칸 여럿을 묶은 틀 (.level-control 6px) */
+    val group = RoundedCornerShape(6.dp)
     val small = RoundedCornerShape(2.dp)
     val dot = RoundedCornerShape(1.dp)
 }
@@ -136,11 +138,8 @@ object TextStyles {
         lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.None),
     )
 
-    /** 상단 바의 서비스 이름 (.nav-brand) */
-    val navBrand = base.copy(fontSize = 13.5.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
-
-    /** 상단 바의 경로 (.nav-link. 지금 화면 .nav-current는 굵게 쓴다) */
-    val nav = base.copy(fontSize = 13.5.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium, fontFeatureSettings = "tnum")
+    /** 상단 바의 서비스 이름과 돌아갈 곳 (.nav-brand, .nav-current. 누르는 자리라 조금 크게) */
+    val pageTitle = base.copy(fontSize = 15.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold)
 
     /** 문서 머리의 분류·날짜 (.doc-meta) */
     val meta = base.copy(fontSize = 12.5.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.01.em)
@@ -150,6 +149,9 @@ object TextStyles {
 
     /** 구분 제목 (.list-divider) */
     val divider = base.copy(fontSize = 13.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
+
+    /** 첫 화면의 오늘의 질문 제목 (.today-title) */
+    val todayTitle = base.copy(fontSize = 17.sp, lineHeight = 25.5.sp, fontWeight = FontWeight.Bold)
 
     /** 목록 행의 질문 제목 (.q-title) */
     val rowTitle = base.copy(fontSize = 15.sp, lineHeight = 24.sp, fontWeight = FontWeight.SemiBold)

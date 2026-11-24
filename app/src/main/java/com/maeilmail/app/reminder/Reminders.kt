@@ -1,6 +1,7 @@
 package com.maeilmail.app.reminder
 
 import android.Manifest
+import android.app.ActivityManager
 import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationChannel
@@ -35,7 +36,7 @@ import java.time.LocalTime
 object Reminders {
     const val ACTION_REMIND = "com.maeilmail.app.action.REMIND"
     const val EXTRA_DATE = "date"
-    private const val CHANNEL = "today_question"
+    const val CHANNEL = "today_question"
     private const val NOTIFICATION_ID = 3001
 
     data class Alarm(val date: LocalDate, val at: LocalDateTime)
@@ -55,7 +56,7 @@ object Reminders {
         return Alarm(date, if (at.isBefore(now)) now else at)
     }
 
-    /** 홈 화면에 오늘의 질문을 보여줄지: 알림 시각이 지났거나 이미 알렸으면. 알림 시각 전에는 미리 보여주지 않는다 */
+    /** 첫 화면에 오늘의 질문을 보여줄지: 알림 시각이 지났거나 이미 알렸으면. 알림 시각 전에는 미리 보여주지 않는다 */
     fun isRevealed(date: LocalDate, now: LocalDateTime, time: LocalTime, lastNotified: LocalDate?): Boolean =
         (lastNotified != null && !lastNotified.isBefore(date)) || !now.isBefore(date.atTime(time))
 
@@ -104,6 +105,7 @@ object Reminders {
 
     // ------------------------------------------------------------ 알림
 
+    /** 이 앱의 알림이 허용됐는지 (알림 종류 하나만 꺼 둔 것은 problems가 본다) */
     fun canNotify(context: Context): Boolean =
         (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) &&
@@ -112,6 +114,37 @@ object Reminders {
     /** 배터리 최적화에서 빠져 있는지 (빠져 있어야 절전 중에도 알림이 늦지 않다) */
     fun isIgnoringBatteryOptimizations(context: Context): Boolean =
         context.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(context.packageName)
+
+    /** 알림이 오지 않거나 늦을 수 있는 까닭 */
+    enum class Problem {
+        /** 이 앱의 알림이 꺼져 있다 */
+        PERMISSION,
+
+        /** '오늘의 질문' 알림 종류만 꺼져 있다 */
+        CHANNEL,
+
+        /** 휴대폰이 이 앱의 백그라운드 동작을 막았다 */
+        BACKGROUND,
+
+        /** 배터리 최적화 대상이라 절전 중에 늦을 수 있다 */
+        BATTERY;
+
+        /** 알림이 아예 보이지 않는 문제인지 (나머지는 늦거나 빠질 수 있는 문제) */
+        val blocks: Boolean get() = this == PERMISSION || this == CHANNEL
+    }
+
+    fun problems(context: Context): List<Problem> = buildList {
+        if (!canNotify(context)) {
+            add(Problem.PERMISSION)
+        } else {
+            val channel = context.getSystemService(NotificationManager::class.java).getNotificationChannel(CHANNEL)
+            if (channel?.importance == NotificationManager.IMPORTANCE_NONE) add(Problem.CHANNEL)
+        }
+        val restricted = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
+            context.getSystemService(ActivityManager::class.java).isBackgroundRestricted
+        if (restricted) add(Problem.BACKGROUND)
+        if (!isIgnoringBatteryOptimizations(context)) add(Problem.BATTERY)
+    }
 
     /** 알람이 울렸을 때: date에 받는 질문을 알린다. 받아 둔 기록에 없으면 질문 없이 알린다 */
     fun notifyDate(context: Context, date: LocalDate) {
@@ -126,23 +159,25 @@ object Reminders {
         }
     }
 
-    /** 설정의 "알림 미리 보기": 다음에 받을 질문 대신 예시로 보여준다 (질문을 미리 알려주지 않도록) */
-    fun preview(context: Context) {
-        post(context.applicationContext, "오늘의 질문 · FE-1", "클로저에 대해서 설명해주세요. (미리 보기)", "fe-1")
+    /** 알림 종류를 만들어 둔다 (이미 있으면 그대로). 만들어 두어야 사용자가 꺼 두었는지 알 수 있다 */
+    fun ensureChannel(context: Context) {
+        context.getSystemService(NotificationManager::class.java).createNotificationChannel(
+            NotificationChannel(CHANNEL, "오늘의 질문", NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "매일 정한 시각에 오늘의 면접 질문을 알려요"
+            },
+        )
     }
 
     private fun post(ctx: Context, title: String, text: String, questionId: String?) {
         if (!canNotify(ctx)) return
         val nm = ctx.getSystemService(NotificationManager::class.java)
-        nm.createNotificationChannel(
-            NotificationChannel(CHANNEL, "오늘의 질문", NotificationManager.IMPORTANCE_HIGH).apply {
-                description = "매일 정한 시각에 오늘의 면접 질문을 알려요"
-            },
-        )
+        ensureChannel(ctx)
+        // 누르면 첫 화면을 연다. 맨 위에 이 질문이 있고 거기서 답변을 확인한다 (MainActivity.readOpenRequest)
         val open = PendingIntent.getActivity(
             ctx, 21,
             Intent(ctx, MainActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                .putExtra(MainActivity.EXTRA_HOME, true)
                 .apply { if (questionId != null) putExtra(MainActivity.EXTRA_QUESTION, questionId) },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )

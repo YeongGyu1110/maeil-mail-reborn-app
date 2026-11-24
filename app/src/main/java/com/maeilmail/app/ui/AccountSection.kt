@@ -4,42 +4,44 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.window.Dialog
-import com.maeilmail.app.account.GitHubApi
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.maeilmail.app.account.Account
+import com.maeilmail.app.account.GitHubApi
 import com.maeilmail.app.account.GitHubAuth
 import com.maeilmail.app.account.Records
 import com.maeilmail.app.ui.theme.AppTheme
@@ -49,7 +51,7 @@ import java.time.Instant
 import java.time.ZoneId
 
 /**
- * 설정의 계정 칸: GitHub로 로그인(Device Flow)하고, 웹과 같은 학습 기록을 읽는지 보여준다.
+ * 설정의 GitHub 칸: 로그인(Device Flow)·로그아웃과 메모 저장소. 메모 저장소는 이 계정의 설정이라 같은 칸에 둔다.
  * 로그인하면 웹과 같은 Firebase 계정(uid)으로 들어가므로 웹의 이해도·별표·메모 저장소가 그대로 보인다.
  */
 @Composable
@@ -62,13 +64,12 @@ fun AccountSection() {
     val user = account.user
     val pending = account.pending
 
-    DividerHead("계정")
-    Spacer(Modifier.height(4.dp))
+    DividerHead("GitHub")
     when {
         pending != null -> DeviceCodeBox(pending)
         user == null -> {
             Text(
-                "GitHub로 로그인하면 웹과 같은 학습 기록(이해도·별표·메모)을 함께 써요. 처음 한 번만 하면 되고, 로그인은 알아서 이어져요.",
+                "로그인하면 웹과 같은 이해도, 별표, 메모를 함께 써요. 처음 한 번만 하면 돼요.",
                 style = TextStyles.small,
                 color = colors.textMuted,
                 modifier = Modifier.padding(horizontal = PaperPadding, vertical = 10.dp),
@@ -82,42 +83,41 @@ fun AccountSection() {
             )
         }
         else -> {
-            InfoRow("GitHub", user.login)
-            RowRule()
-            InfoRow(
-                "학습 기록",
-                when {
-                    records.loading && !records.loaded -> "읽는 중…"
-                    records.loaded -> "이해도 ${records.items.values.count { it.level != Records.Level.NEW }}개 · " +
-                        "별표 ${records.items.values.count { it.starred }}개"
-                    else -> "다시 읽기"
-                },
-                onClick = { Records.refresh(force = true) },
-                valueColor = if (records.loaded) colors.textSub else null,
-            )
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(start = PaperPadding, end = PaperPadding - 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(36.dp).background(colors.primaryLight, Radius.small), contentAlignment = Alignment.Center) {
+                    Text(user.login.take(1).uppercase(), style = TextStyles.todayTitle, color = colors.primary)
+                }
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    user.login,
+                    style = TextStyles.body,
+                    color = colors.textMain,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                Btn("로그아웃", onClick = { confirmSignOut = true })
+            }
             RowRule()
             // 메모를 커밋할 저장소. 웹과 같은 설정이라 여기서 바꾸면 웹도 바뀐다
             InfoRow(
                 "메모 저장소",
-                records.memoRepo?.fullName ?: "고르기",
-                sub = if (records.memoRepo == null) "고르면 메모를 저장할 때 GitHub에 커밋해요" else null,
+                if (records.memoRepo == null) "고르기" else "변경",
+                sub = records.memoRepo?.fullName ?: "고르면 메모를 저장할 때 커밋해요",
                 onClick = { pickingRepo = true },
-            )
-            Spacer(Modifier.height(4.dp))
-            Btn(
-                "로그아웃",
-                onClick = { confirmSignOut = true },
-                modifier = Modifier.padding(horizontal = PaperPadding - 14.dp),
             )
         }
     }
-    (account.error ?: records.error)?.let {
-        Text(
-            it,
-            style = TextStyles.small,
-            color = colors.danger,
-            modifier = Modifier.padding(horizontal = PaperPadding, vertical = 8.dp),
-        )
+    account.error?.let {
+        Text(it, style = TextStyles.small, color = colors.danger, modifier = Modifier.padding(horizontal = PaperPadding, vertical = 8.dp))
+    }
+    // 학습 기록을 읽거나 저장하지 못했을 때만 나온다
+    records.error?.let {
+        RowRule()
+        InfoRow("학습 기록을 맞추지 못했어요", "다시 읽기", sub = it, labelColor = colors.danger, onClick = { Records.refresh(force = true) })
     }
 
     if (pickingRepo) RepoDialog(selected = records.memoRepo, onDismiss = { pickingRepo = false })
@@ -142,7 +142,7 @@ fun AccountSection() {
  * 고르면 계정의 memoRepo를 바꾼다 (웹과 함께 쓰는 설정).
  */
 @Composable
-private fun RepoDialog(selected: Records.MemoRepo?, onDismiss: () -> Unit) {
+fun RepoDialog(selected: Records.MemoRepo?, onDismiss: () -> Unit) {
     val colors = AppTheme.colors
     val context = LocalContext.current
     var repos by remember { mutableStateOf<List<GitHubApi.Repo>?>(null) }

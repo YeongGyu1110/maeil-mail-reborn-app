@@ -28,9 +28,18 @@ import com.maeilmail.app.ui.theme.AppTheme
 import com.maeilmail.app.work.SyncWorker
 import kotlin.concurrent.thread
 
+/** 앱 밖에서 열어 달라고 한 것 */
+sealed interface OpenRequest {
+    /** 질문 화면 (메일 링크) */
+    data class Question(val id: String) : OpenRequest
+
+    /** 첫 화면. id: 알림·위젯이 보여 준 질문, filter: 걸어 둘 필터 */
+    data class Home(val id: String?, val filter: String?) : OpenRequest
+}
+
 class MainActivity : ComponentActivity() {
-    /** 알림을 눌러 열 질문 ID */
-    private val openRequest = mutableStateOf<String?>(null)
+    /** 앱 밖(알림, 위젯, 메일 링크)에서 열어 달라고 한 것 */
+    private val openRequest = mutableStateOf<OpenRequest?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // 상태 표시줄·내비게이션 바 아이콘 색은 휴대폰의 다크 모드를 따른다
@@ -48,6 +57,7 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) readOpenRequest(intent)
         // 앱을 열지 않아도 6시간마다 발송 기록을 받아 알림이 빠지지 않게 한다
         SyncWorker.schedulePeriodic(this)
+        Reminders.ensureChannel(this)
         thread(name = "schedule") { Reminders.schedule(applicationContext) }
         val settings = Settings.get(this)
         setContent {
@@ -105,15 +115,30 @@ class MainActivity : ComponentActivity() {
         Records.refresh()
     }
 
-    /** 열 질문: 알림·위젯이 넘긴 ID, 또는 웹 주소(메일의 "답변 확인하기" 버튼)의 ?q= */
+    /**
+     * 알림·위젯은 첫 화면을 연다(맨 위의 오늘의 질문에서 답변을 확인한다).
+     * 메일의 "답변 확인하기" 버튼(웹 주소의 ?q=)은 이미 확인하겠다고 누른 것이므로 질문 화면을 바로 연다.
+     */
     private fun readOpenRequest(intent: Intent?) {
-        val id = intent?.getStringExtra(EXTRA_QUESTION)
-            ?: intent?.takeIf { it.action == Intent.ACTION_VIEW }?.let { WebLink.questionId(it.data) }
-        id?.let { openRequest.value = it }
+        intent ?: return
+        val request = when {
+            intent.action == Intent.ACTION_VIEW -> WebLink.questionId(intent.data)?.let(OpenRequest::Question)
+            intent.hasExtra(EXTRA_HOME) || intent.hasExtra(EXTRA_QUESTION) ->
+                OpenRequest.Home(intent.getStringExtra(EXTRA_QUESTION), intent.getStringExtra(EXTRA_FILTER))
+            else -> null
+        }
+        if (request != null) openRequest.value = request
     }
 
     companion object {
+        /** 첫 화면을 연다 */
+        const val EXTRA_HOME = "home"
+
+        /** 알림·위젯이 보여 준 질문 ID */
         const val EXTRA_QUESTION = "question"
+
+        /** 첫 화면에 걸어 둘 필터 (위젯의 숫자 칸). 값은 ListFilter의 SHOW_ */
+        const val EXTRA_FILTER = "filter"
 
         /** 시작 화면을 붙잡아 두는 시간: 아이콘 애니메이션(0.7초)에서 시작 화면이 뜨기까지 걸린 시간을 뺀 정도 */
         private const val SPLASH_HOLD_MS = 650L

@@ -1,7 +1,9 @@
 package com.maeilmail.app.ui
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.SystemClock
 import android.provider.Settings as AndroidSettings
@@ -9,6 +11,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,10 +24,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -47,6 +51,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -57,11 +62,11 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.maeilmail.app.account.Records
 import com.maeilmail.app.data.Settings
+import com.maeilmail.app.reminder.Reminders
 import com.maeilmail.app.ui.theme.AppTheme
 import com.maeilmail.app.ui.theme.LineIcons
 import com.maeilmail.app.ui.theme.Radius
 import com.maeilmail.app.ui.theme.TextStyles
-import com.maeilmail.app.ui.theme.ThemeSwitch
 
 /*
  * 여러 화면이 같이 쓰는 웹식 부품. 웹 base.css의 상단 바·버튼·토스트를 휴대폰 손가락 크기에 맞춰 옮겼다.
@@ -76,93 +81,80 @@ private val RowBleed: Dp = 8.dp
 val RowInset: Dp = PaperPadding - RowBleed
 
 /**
- * 상단 바: 캔버스와 같은 면, 구분선 없음 (웹 .top-nav).
- * 탭 화면은 "■ 매일메일 / 지금 화면", 질문 화면은 "← 질문 목록 / FE-1"처럼 경로로 보인다.
+ * 상단 바: 캔버스와 같은 면, 구분선 없음 (웹 .top-nav). 어느 화면에서나 누르는 것만 둔다.
+ * 첫 화면은 로고·검색·설정, 그 밖의 화면은 뒤로 가기와 그 화면의 버튼이다.
  */
 @Composable
-fun TopNav(
-    current: String,
-    parent: String? = null,
-    onBack: (() -> Unit)? = null,
-    trailing: @Composable RowScope.() -> Unit = {},
-) {
-    val colors = AppTheme.colors
+fun TopBar(content: @Composable RowScope.() -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
-            .background(colors.bgCanvas)
+            .background(AppTheme.colors.bgCanvas)
             .statusBarsPadding()
-            .height(52.dp)
-            .padding(start = if (onBack != null) 8.dp else PaperPadding, end = 12.dp),
+            .heightIn(min = 60.dp)
+            .padding(horizontal = 4.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (onBack != null) {
-            IconBtn(LineIcons.ArrowLeft, contentDescription = "뒤로", onClick = onBack)
-            Spacer(Modifier.width(4.dp))
-        } else {
-            Brand()
-            NavSeparator()
-        }
-        if (parent != null) {
-            Text(
-                parent,
-                style = TextStyles.nav,
-                color = colors.textMuted,
-                maxLines = 1,
-                modifier = if (onBack != null) Modifier.clip(Radius.small).clickable(onClick = onBack) else Modifier,
-            )
-            NavSeparator()
-        }
-        Text(
-            current,
-            style = TextStyles.nav.copy(fontWeight = FontWeight.SemiBold),
-            color = colors.textMain,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        trailing()
-        ThemeButton()
-    }
-}
-
-/** 테마 전환 버튼 (웹 상단 바의 해·달 버튼): 라이트면 달, 다크면 해를 보이고 누르면 반대로 바꾼다 */
-@Composable
-private fun ThemeButton() {
-    val context = LocalContext.current
-    val dark = AppTheme.colors.isDark
-    IconBtn(
-        if (dark) LineIcons.Sun else LineIcons.Moon,
-        contentDescription = if (dark) "라이트 테마로" else "다크 테마로",
-        onClick = { ThemeSwitch.toggle(context, dark) },
-        tint = AppTheme.colors.textMuted,
+        content = content,
     )
 }
 
-/** 로고: 각진 초록 점 + 서비스 이름 (웹 .nav-brand) */
+/** 첫 화면이 아닌 화면의 상단 바: 돌아갈 곳의 이름까지 하나로 누르는 뒤로 가기 */
 @Composable
-private fun Brand() {
+fun PageBar(title: String, onBack: () -> Unit, trailing: @Composable RowScope.() -> Unit = {}) {
     val colors = AppTheme.colors
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(7.dp).background(colors.primary, Radius.dot))
-        Spacer(Modifier.width(6.dp))
-        Text("매일메일", style = TextStyles.navBrand, color = colors.textMain)
+    TopBar {
+        Box(Modifier.weight(1f)) {
+            Row(
+                Modifier
+                    .heightIn(min = 48.dp)
+                    .clip(Radius.control)
+                    .clickable(role = Role.Button, onClickLabel = "뒤로", onClick = onBack)
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(LineIcons.ArrowLeft, contentDescription = "뒤로", tint = colors.textSub, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(title, style = TextStyles.pageTitle, color = colors.textMain, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        trailing()
     }
 }
 
+/** 로고: 각진 초록 점 + 서비스 이름 (웹 .nav-brand). 누르면 처음 목록으로 돌아간다 */
 @Composable
-private fun NavSeparator() {
-    Text("/", style = TextStyles.nav, color = AppTheme.colors.ruleStrong, modifier = Modifier.padding(horizontal = 8.dp))
+fun Brand(onClick: () -> Unit) {
+    val colors = AppTheme.colors
+    Row(
+        Modifier
+            .heightIn(min = 48.dp)
+            .clip(Radius.control)
+            .clickable(role = Role.Button, onClickLabel = "처음 목록으로", onClick = onClick)
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(8.dp).background(colors.primary, Radius.dot))
+        Spacer(Modifier.width(8.dp))
+        Text("매일메일", style = TextStyles.pageTitle.copy(fontWeight = FontWeight.Bold), color = colors.textMain)
+    }
 }
 
 /** 아이콘만 있는 버튼 (웹 .btn-icon). 누르면 각진 바탕이 깔린다 */
 @Composable
-fun IconBtn(icon: ImageVector, contentDescription: String?, onClick: () -> Unit, tint: Color = AppTheme.colors.textSub) {
+fun IconBtn(
+    icon: ImageVector,
+    contentDescription: String?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    tint: Color = AppTheme.colors.textSub,
+    enabled: Boolean = true,
+) {
     Box(
-        Modifier
-            .size(40.dp)
+        modifier
+            .size(48.dp)
+            .alpha(if (enabled) 1f else 0.3f)
             .clip(Radius.control)
-            .clickable(role = Role.Button, onClickLabel = contentDescription, onClick = onClick),
+            .clickable(enabled = enabled, role = Role.Button, onClickLabel = contentDescription, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, contentDescription = contentDescription, tint = tint, modifier = Modifier.size(20.dp))
@@ -183,7 +175,7 @@ enum class BtnKind {
     Danger,
 }
 
-/** 버튼: 모서리 4dp, 굵은 글자. 웹 .btn보다 높이만 손가락에 맞게 키웠다 (32px → 40dp) */
+/** 버튼: 모서리 4dp, 굵은 글자. 웹 .btn보다 높이만 손가락에 맞게 키웠다 (32px → 48dp) */
 @Composable
 fun Btn(
     text: String,
@@ -209,29 +201,15 @@ fun Btn(
     Box(
         modifier
             .alpha(if (enabled) 1f else 0.45f)
-            .heightIn(min = 40.dp)
+            .heightIn(min = 48.dp)
             .clip(Radius.control)
             .background(background)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
-            .padding(horizontal = 14.dp),
+            .padding(horizontal = 16.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(text, style = TextStyles.button, color = color, maxLines = 1)
     }
-}
-
-/** 글자처럼 보이는 작은 버튼 (웹 .link-btn) */
-@Composable
-fun LinkBtn(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Text(
-        text,
-        style = TextStyles.num,
-        color = AppTheme.colors.primary,
-        modifier = modifier
-            .clip(Radius.small)
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 6.dp, vertical = 6.dp),
-    )
 }
 
 /**
@@ -244,15 +222,16 @@ fun Toggle(checked: Boolean, modifier: Modifier = Modifier) {
     val offset by animateDpAsState(if (checked) 18.dp else 0.dp, label = "toggle")
     Box(
         modifier
-            .size(width = 40.dp, height = 22.dp)
+            .size(width = 44.dp, height = 26.dp)
             .background(if (checked) colors.primary else colors.bgHover, Radius.control)
-            .padding(3.dp),
+            .then(if (checked) Modifier else Modifier.border(1.dp, colors.ruleStrong, Radius.control))
+            .padding(5.dp),
     ) {
         Box(
             Modifier
                 .offset(x = offset)
                 .size(16.dp)
-                .background(if (checked) colors.primaryInk else colors.ruleStrong, Radius.small),
+                .background(if (checked) colors.primaryInk else colors.textMuted, Radius.small),
         )
     }
 }
@@ -332,6 +311,7 @@ fun InfoRow(
     sub: String? = null,
     enabled: Boolean = true,
     valueColor: Color? = null,
+    labelColor: Color? = null,
     onClick: (() -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
@@ -342,12 +322,13 @@ fun InfoRow(
             .padding(horizontal = RowInset)
             .clip(Radius.control)
             .then(if (onClick != null && enabled) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(horizontal = RowBleed, vertical = 13.dp),
+            .heightIn(min = 60.dp)
+            .padding(horizontal = RowBleed, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Column(Modifier.weight(1f)) {
-            Text(label, style = TextStyles.body, color = if (enabled) colors.textMain else colors.textMuted)
+            Text(label, style = TextStyles.body, color = labelColor ?: if (enabled) colors.textMain else colors.textMuted)
             if (sub != null) Text(sub, style = TextStyles.small, color = colors.textMuted)
         }
         if (trailing != null) {
@@ -421,7 +402,7 @@ fun LevelBadge(level: Records.Level, modifier: Modifier = Modifier) {
     val (background, text, dot) = levelColors(level)
     Row(
         modifier
-            .height(24.dp)
+            .heightIn(min = 24.dp)
             .background(background, Radius.control)
             .padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -434,11 +415,11 @@ fun LevelBadge(level: Records.Level, modifier: Modifier = Modifier) {
 
 /** 별표 버튼 (웹 .star-btn): 누르면 별표하고, 다시 누르면 뗀다. 별표한 질문은 노란 칠한 별 */
 @Composable
-fun StarButton(starred: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier, size: Dp = 36.dp) {
+fun StarButton(starred: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier) {
     val colors = AppTheme.colors
     Box(
         modifier
-            .requiredSize(size)
+            .size(48.dp)
             .clip(Radius.control)
             .toggleable(value = starred, role = Role.Checkbox, onValueChange = { onToggle() }),
         contentAlignment = Alignment.Center,
@@ -447,48 +428,42 @@ fun StarButton(starred: Boolean, onToggle: () -> Unit, modifier: Modifier = Modi
             if (starred) LineIcons.StarFilled else LineIcons.Star,
             contentDescription = if (starred) "별표 떼기" else "별표하기",
             tint = if (starred) colors.star else colors.textMuted,
-            modifier = Modifier.size(17.dp),
+            modifier = Modifier.size(18.dp),
         )
     }
 }
 
-/** 여러 가지 중 하나를 고르는 창: 확인 창과 같은 모양에 행 목록. 고른 행은 옅은 초록 바탕과 "선택됨" */
+/** 여러 가지 중 하나를 그 자리에서 고르는 칸 (웹 .level-control): 고른 칸만 지면처럼 떠오른다 */
 @Composable
-fun ChoiceDialog(title: String, options: List<String>, selected: Int, onPick: (Int) -> Unit, onDismiss: () -> Unit) {
+fun Segments(options: List<String>, selected: Int, onPick: (Int) -> Unit, modifier: Modifier = Modifier) {
     val colors = AppTheme.colors
-    Dialog(onDismissRequest = onDismiss) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .background(colors.bgPaper, Radius.control)
-                .padding(vertical = 20.dp),
-        ) {
-            Text(title, style = TextStyles.dialogTitle, color = colors.textMain, modifier = Modifier.padding(horizontal = 24.dp))
-            Spacer(Modifier.height(12.dp))
-            options.forEachIndexed { i, label ->
-                val on = i == selected
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                        .clip(Radius.control)
-                        .background(if (on) colors.primaryLight else Color.Transparent)
-                        .clickable(role = Role.RadioButton) { onPick(i) }
-                        .padding(horizontal = 8.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        label,
-                        style = TextStyles.body,
-                        fontWeight = if (on) FontWeight.SemiBold else null,
-                        color = colors.textMain,
-                        modifier = Modifier.weight(1f),
-                    )
-                    if (on) Text("선택됨", style = TextStyles.num, color = colors.primary)
-                }
-            }
-            Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp, top = 8.dp), horizontalArrangement = Arrangement.End) {
-                Btn("닫기", onClick = onDismiss)
+    Row(
+        modifier
+            .fillMaxWidth()
+            .border(1.dp, colors.rule, Radius.group)
+            .background(colors.bgSubtle, Radius.group)
+            .padding(3.dp)
+            .selectableGroup(),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        options.forEachIndexed { i, label ->
+            val on = i == selected
+            Box(
+                Modifier
+                    .weight(1f)
+                    .heightIn(min = 46.dp)
+                    .clip(Radius.control)
+                    .then(if (on) Modifier.background(colors.bgPaper).border(1.dp, colors.rule, Radius.control) else Modifier)
+                    .selectable(selected = on, role = Role.RadioButton, onClick = { onPick(i) })
+                    .padding(horizontal = 4.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    label,
+                    style = TextStyles.button.copy(fontSize = 13.5.sp),
+                    color = if (on) colors.textMain else colors.textMuted,
+                    textAlign = TextAlign.Center,
+                )
             }
         }
     }
@@ -536,6 +511,36 @@ fun rememberNotificationPermissionRequest(onResult: () -> Unit = {}): () -> Unit
         }
     }
 }
+
+/** 알림이 오지 않거나 늦을 수 있는 문제를 고치러 간다: 권한을 묻거나, 그 문제를 바꾸는 휴대폰 설정 화면을 연다 */
+@Composable
+fun rememberProblemFix(): (Reminders.Problem) -> Unit {
+    val context = LocalContext.current
+    val requestPermission = rememberNotificationPermissionRequest()
+    return { problem ->
+        when (problem) {
+            Reminders.Problem.PERMISSION -> requestPermission()
+            Reminders.Problem.CHANNEL -> context.startActivity(
+                Intent(AndroidSettings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                    .putExtra(AndroidSettings.EXTRA_APP_PACKAGE, context.packageName)
+                    .putExtra(AndroidSettings.EXTRA_CHANNEL_ID, Reminders.CHANNEL)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+            Reminders.Problem.BACKGROUND -> context.startActivity(appDetailsIntent(context.packageName))
+            Reminders.Problem.BATTERY -> context.startActivity(batteryIntent(context.packageName))
+        }
+    }
+}
+
+/** 배터리 최적화 예외를 묻는 시스템 창 (사용자가 직접 허용한다) */
+@SuppressLint("BatteryLife")
+private fun batteryIntent(packageName: String): Intent =
+    Intent(AndroidSettings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName"))
+
+/** 휴대폰 설정의 이 앱 화면 (알림, 배터리, 기본으로 열기) */
+fun appDetailsIntent(packageName: String): Intent =
+    Intent(AndroidSettings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
 fun notificationSettingsIntent(packageName: String): Intent =
     Intent(AndroidSettings.ACTION_APP_NOTIFICATION_SETTINGS)

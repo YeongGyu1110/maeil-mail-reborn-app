@@ -200,6 +200,7 @@ h1#title {
 [data-theme="dark"] .btn-primary, [data-theme="dark"] .btn-primary:active:not(:disabled) { color: #0c1512; }
 .btn-soft { background-color: var(--bg-subtle); }
 .btn-sm { height: 34px; padding: 0 11px; font-size: 13px; }
+#memo-edit { height: 44px; padding: 0 14px; }
 
 /* 글자처럼 보이는 작은 버튼 (웹 .link-btn) */
 .link-btn {
@@ -213,48 +214,7 @@ h1#title {
   letter-spacing: inherit;
 }
 
-/* ---------- 학습 수준: 각진 점 + 이름 (웹 base.css .dot, .level-badge) ---------- */
-.dot {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  border-radius: 1px;
-  flex-shrink: 0;
-  background: var(--rule-strong);
-}
-
-.dot-review { background: var(--review-bar); }
-.dot-done { background: var(--primary); }
-
-.level-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 24px;
-  padding: 0 8px;
-  border-radius: 4px;
-  background: var(--bg-subtle);
-  color: var(--text-muted);
-  font-size: 12.5px;
-  font-weight: 600;
-  white-space: nowrap;
-  text-decoration: none;
-}
-
-.level-badge::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: 1px;
-  background: var(--rule-strong);
-}
-
-.level-badge[data-level="review"] { background: var(--review-light); color: var(--review); }
-.level-badge[data-level="review"]::before { background: var(--review-bar); }
-.level-badge[data-level="done"] { background: var(--primary-light); color: var(--primary); }
-.level-badge[data-level="done"]::before { background: var(--primary); }
-
-/* 문서 머리의 지금 학습 상태 (웹 .doc-status) */
+/* 문서 머리의 메모 표시 (웹 .doc-status) */
 .doc-status {
   display: flex;
   flex-wrap: wrap;
@@ -278,7 +238,7 @@ h1#title {
 
 .status-memo svg { color: var(--primary); }
 
-/* ---------- 학습 기록: 본문 뒤에 진한 선으로 나눈 문서의 마지막 절 (웹 .study) ---------- */
+/* ---------- 내 메모: 본문 뒤에 진한 선으로 나눈 문서의 마지막 절 (웹 .study) ---------- */
 .study {
   margin-top: 48px;
   padding-top: 28px;
@@ -286,73 +246,64 @@ h1#title {
 }
 
 .study-title {
-  margin: 0 0 24px;
+  margin: 0;
   font-size: 19px;
   font-weight: 700;
   line-height: 1.5;
   color: var(--text-main);
 }
 
-.study-block + .study-block { margin-top: 32px; }
-
 .study-block-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 34px;
-  margin-bottom: 10px;
+  min-height: 44px;
+  margin-bottom: 8px;
 }
 
-.study-block-head .study-block-title { margin: 0; }
-
-.study-block-title {
-  margin: 0 0 10px;
-  font-size: 14.5px;
-  font-weight: 700;
-  color: var(--text-main);
-}
-
-/* 이해도: 셋 중 하나를 고르는 분할 버튼. 고른 칸만 종이처럼 떠오르고 수준의 색을 띤다 (웹 .level-control 좁은 화면) */
-.level-control {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 2px;
-  padding: 3px;
-  border-radius: 6px;
-  background: var(--bg-subtle);
-  box-shadow: inset 0 0 0 1px var(--rule);
-}
-
-.level-option {
-  display: inline-flex;
+/* 메모 저장소를 고르지 않았을 때의 안내 */
+.memo-repo {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  height: 40px;
-  padding: 0 8px;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
+  gap: 0 4px;
+  margin: 2px 0 0;
+  font-size: 12.5px;
   color: var(--text-muted);
-  font-family: inherit;
-  font-size: 13.5px;
-  font-weight: 600;
+}
+
+.memo-repo .link-btn { min-height: 48px; padding: 0 8px; }
+
+/* ---------- 이전·다음 질문 (웹 .page-nav-card) ---------- */
+.near { margin-top: 40px; border-top: 1px solid var(--rule); }
+
+.near-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 14px 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
   letter-spacing: inherit;
-  white-space: nowrap;
-  transition: background-color 0.15s, color 0.15s, box-shadow 0.15s;
+  text-align: left;
 }
 
-.level-option:not([aria-checked="true"]) .dot { opacity: 0.55; }
+.near-card:not([hidden]) + .near-card { border-top: 1px solid var(--rule); }
+.near-card:active .near-title { text-decoration: underline; text-underline-offset: 3px; }
+.near-sub { font-size: 12.5px; font-weight: 600; color: var(--text-muted); }
 
-.level-option[aria-checked="true"] {
-  background: var(--bg-paper);
+.near-title {
+  font-size: 14.5px;
+  font-weight: 600;
   color: var(--text-main);
-  box-shadow: 0 1px 2px rgba(20, 23, 26, 0.1), 0 0 0 1px var(--rule);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-
-.level-option[data-level="review"][aria-checked="true"] { color: var(--review); }
-.level-option[data-level="done"][aria-checked="true"] { color: var(--primary); }
 
 /* ---------- 본문 ---------- */
 #content {
