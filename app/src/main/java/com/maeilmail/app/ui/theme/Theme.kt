@@ -16,6 +16,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.intl.LocaleList
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -129,13 +131,16 @@ val Pretendard = FontFamily(
 
 /**
  * 웹의 글자 단계. 크기는 웹의 좁은 화면 값을 따르고, 이름은 웹 클래스에서 따왔다.
- * 웹처럼 글자 사이를 -0.015em 좁히고, 줄 높이는 CSS처럼 위아래로 고르게 나눈다.
+ * 웹처럼 글자 사이를 -0.015em 좁히고, 줄 높이는 CSS처럼 위아래로 고르게 나누고, 낱말 단위로 줄을 바꾼다.
  */
 object TextStyles {
     private val base = TextStyle(
         fontFamily = Pretendard,
         letterSpacing = (-0.015).em,
         lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.None),
+        // 낱말 중간에서 줄이 끊기지 않게 한다 (웹 word-break: keep-all. 안드로이드 13 이상). 휴대폰 언어가 영어여도 되도록 한국어로 정해 둔다
+        localeList = LocaleList("ko-KR"),
+        lineBreak = LineBreak(LineBreak.Strategy.Simple, LineBreak.Strictness.Default, LineBreak.WordBreak.Phrase),
     )
 
     /** 상단 바의 서비스 이름과 돌아갈 곳 (.nav-brand, .nav-current. 누르는 자리라 조금 크게) */

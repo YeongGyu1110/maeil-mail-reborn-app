@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -197,6 +199,7 @@ fun RepoDialog(selected: Records.MemoRepo?, onDismiss: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     var saving by remember { mutableStateOf(false) }
     var attempt by remember { mutableIntStateOf(0) }
+    val listState = rememberLazyListState()
 
     LaunchedEffect(attempt) {
         error = null
@@ -246,7 +249,7 @@ fun RepoDialog(selected: Records.MemoRepo?, onDismiss: () -> Unit) {
                     message != null && list == null -> RepoState(message, "다시 시도") { attempt++ }
                     list == null -> RepoState("저장소를 불러오는 중…")
                     list.isEmpty() -> RepoState("아직 앱에 추가한 저장소가 없어요. 메모를 남길 저장소를 앱에 추가해 주세요.")
-                    else -> LazyColumn(Modifier.padding(horizontal = 16.dp)) {
+                    else -> LazyColumn(Modifier.padding(horizontal = 16.dp), state = listState, contentPadding = PaddingValues(bottom = 8.dp)) {
                         items(list, key = { it.id }) { repo ->
                             // 같은 이름으로 저장소를 다시 만들면 번호가 바뀌므로 이름으로도 본다 (커밋은 이름으로 한다)
                             val on = selected != null &&
@@ -254,10 +257,11 @@ fun RepoDialog(selected: Records.MemoRepo?, onDismiss: () -> Unit) {
                             Row(
                                 Modifier
                                     .fillMaxWidth()
+                                    .heightIn(min = 48.dp)
                                     .clip(Radius.control)
                                     .background(if (on) colors.primaryLight else Color.Transparent)
                                     .clickable(enabled = !saving) { choose(repo) }
-                                    .padding(horizontal = 8.dp, vertical = 10.dp),
+                                    .padding(horizontal = 8.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Column(Modifier.weight(1f)) {
@@ -293,9 +297,10 @@ fun RepoDialog(selected: Records.MemoRepo?, onDismiss: () -> Unit) {
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 6.dp),
                 )
             }
-            HorizontalDivider(color = colors.rule)
+            // 목록이 아래로 더 이어질 때만 선을 긋는다 (다 보일 때는 다른 창처럼 여백으로만 나눈다)
+            HorizontalDivider(color = if (listState.canScrollForward) colors.rule else Color.Transparent)
             Row(
-                Modifier.fillMaxWidth().padding(start = 10.dp, end = 12.dp, top = 6.dp, bottom = 8.dp),
+                Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Btn(
