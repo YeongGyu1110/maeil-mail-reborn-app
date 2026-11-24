@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 지금 앱과 나란히 설치해 써 보는 판의 이름 -->
+    <string name="app_name">매일메일 개편</string>
+</resources>

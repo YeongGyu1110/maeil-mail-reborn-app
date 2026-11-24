@@ -7,6 +7,7 @@ import android.content.pm.verify.domain.DomainVerificationUserState
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings as AndroidSettings
+import com.maeilmail.app.BuildConfig
 
 /**
  * 웹 서비스 주소를 앱이 받는다 (메일의 "답변 확인하기 →" 버튼 등).
@@ -51,6 +52,8 @@ object WebLink {
      */
     fun isOpenedByApp(context: Context, host: String = HOST): Boolean? {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return null
+        // 나란히 써 보는 판(패키지 이름이 다르다)은 증명 파일에 없어 늘 꺼져 있으므로 묻지 않는다
+        if (BuildConfig.BUILD_TYPE == "preview") return null
         val state = context.getSystemService(DomainVerificationManager::class.java)
             ?.getDomainVerificationUserState(context.packageName) ?: return null
         if (!state.isLinkHandlingAllowed) return false
