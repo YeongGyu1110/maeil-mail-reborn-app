@@ -266,7 +266,7 @@ private fun TimeDialog(initial: LocalTime, onDismiss: () -> Unit, onConfirm: (Lo
             Modifier
                 .fillMaxWidth()
                 .background(colors.bgPaper, Radius.control)
-                .padding(24.dp),
+                .padding(DialogPadding),
         ) {
             Text("알림 시각", style = TextStyles.dialogTitle, color = colors.textMain)
             Spacer(Modifier.height(6.dp))
@@ -308,7 +308,7 @@ private fun TimeDialog(initial: LocalTime, onDismiss: () -> Unit, onConfirm: (Lo
                 )
             }
             Row(
-                Modifier.fillMaxWidth().padding(top = 20.dp),
+                Modifier.fillMaxWidth().padding(top = 13.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
             ) {
                 Btn("취소", onClick = onDismiss)

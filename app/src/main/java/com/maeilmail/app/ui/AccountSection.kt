@@ -93,12 +93,12 @@ fun AccountSection() {
                 onClick = Account::signIn,
                 enabled = !account.busy,
                 icon = LineIcons.GitHub,
-                modifier = Modifier.padding(horizontal = PaperPadding - 16.dp),
+                modifier = Modifier.padding(horizontal = PaperPadding - BtnPadding),
             )
         }
         else -> {
             Row(
-                Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(start = PaperPadding, end = PaperPadding - 16.dp),
+                Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(start = PaperPadding, end = PaperPadding - BtnPadding),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 ProfilePhoto(user)
@@ -300,7 +300,7 @@ fun RepoDialog(selected: Records.MemoRepo?, onDismiss: () -> Unit) {
             // 목록이 아래로 더 이어질 때만 선을 긋는다 (다 보일 때는 다른 창처럼 여백으로만 나눈다)
             HorizontalDivider(color = if (listState.canScrollForward) colors.rule else Color.Transparent)
             Row(
-                Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 8.dp),
+                Modifier.fillMaxWidth().padding(start = 24.dp - BtnPadding, end = 24.dp - BtnPadding, top = 4.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Btn(
@@ -353,7 +353,7 @@ private fun DeviceCodeBox(code: GitHubAuth.DeviceCode) {
                 .background(colors.bgSubtle, Radius.control)
                 .padding(horizontal = 16.dp, vertical = 10.dp),
         )
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(7.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Btn(
                 "코드 복사하고 GitHub 열기",
@@ -367,7 +367,7 @@ private fun DeviceCodeBox(code: GitHubAuth.DeviceCode) {
             )
             Btn("취소", onClick = Account::cancelSignIn)
         }
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(3.dp))
         Text(
             "승인하면 이 화면으로 돌아와 저절로 로그인돼요. 코드는 ${Format.time(until)}까지 쓸 수 있어요.",
             style = TextStyles.small,

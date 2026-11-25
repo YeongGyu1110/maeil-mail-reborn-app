@@ -23,8 +23,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -436,33 +436,35 @@ private fun Picker(
     }
 }
 
+/** 펼친 목록의 한 줄 (웹 .cat-option). 줄이 붙어 있어 누르는 자리를 둘레로 넓힐 수 없으므로 웹의 32px보다 높은 40dp다 */
 @Composable
 private fun Option(name: String, count: Int, selected: Boolean, dot: Color? = null, onClick: () -> Unit) {
     val colors = AppTheme.colors
-    DropdownMenuItem(
-        text = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (dot != null) {
-                    Box(Modifier.size(7.dp).background(dot, Radius.dot))
-                    Spacer(Modifier.width(9.dp))
-                }
-                Text(
-                    name,
-                    style = TextStyles.button,
-                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                    color = if (selected) colors.primary else colors.textSub,
-                )
-            }
-        },
-        trailingIcon = {
-            Text(
-                "$count",
-                style = TextStyles.num,
-                color = colors.textMuted,
-                textAlign = TextAlign.End,
-                modifier = Modifier.widthIn(min = 28.dp),
-            )
-        },
-        onClick = onClick,
-    )
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 40.dp)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (dot != null) {
+            Box(Modifier.size(7.dp).background(dot, Radius.dot))
+            Spacer(Modifier.width(9.dp))
+        }
+        Text(
+            name,
+            style = TextStyles.button,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            color = if (selected) colors.primary else colors.textSub,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            "$count",
+            style = TextStyles.num,
+            color = colors.textMuted,
+            textAlign = TextAlign.End,
+            modifier = Modifier.padding(start = 20.dp).widthIn(min = 28.dp),
+        )
+    }
 }

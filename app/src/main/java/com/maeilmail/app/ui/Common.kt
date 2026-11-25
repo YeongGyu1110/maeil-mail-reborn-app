@@ -16,6 +16,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -98,8 +99,8 @@ fun TopBar(content: @Composable RowScope.() -> Unit) {
             .fillMaxWidth()
             .background(AppTheme.colors.bgCanvas)
             .statusBarsPadding()
-            .heightIn(min = 60.dp)
-            .padding(horizontal = 4.dp, vertical = 6.dp),
+            .heightIn(min = 56.dp)
+            .padding(horizontal = 4.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         content = content,
     )
@@ -183,7 +184,10 @@ enum class BtnKind {
     Danger,
 }
 
-/** 버튼: 모서리 4dp, 굵은 글자. 웹 .btn보다 높이만 손가락에 맞게 키웠다 (32px → 48dp) */
+/** 버튼 글자의 양옆 여백. 글자형 버튼의 글자를 옆의 글과 같은 세로줄에 맞출 때 이만큼 당긴다 */
+val BtnPadding: Dp = 14.dp
+
+/** 버튼 (웹 .btn): 모서리 4dp, 굵은 글자. 보이는 높이는 ControlHeight이고 누르는 자리는 48dp다 */
 @Composable
 fun Btn(
     text: String,
@@ -210,11 +214,12 @@ fun Btn(
     Row(
         modifier
             .alpha(if (enabled) 1f else 0.45f)
-            .heightIn(min = 48.dp)
+            .minimumInteractiveComponentSize()
+            .heightIn(min = ControlHeight)
             .clip(Radius.control)
             .background(background)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = BtnPadding, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
     ) {
@@ -380,6 +385,9 @@ fun InfoRow(
     }
 }
 
+/** 창 안쪽 여백 (웹 .confirm-dialog 24px). 아래는 버튼 둘레의 누르는 자리(7dp)만큼 뺀다 */
+val DialogPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 17.dp)
+
 /**
  * 확인 창 (웹 .confirm-dialog): 모서리 4dp, 제목·설명, 오른쪽 아래에 글자 버튼(취소)과 면 버튼(확인).
  * danger면 확인 버튼을 빨간 면으로 둔다 (웹 .btn-danger).
@@ -400,13 +408,13 @@ fun ConfirmDialog(
             Modifier
                 .fillMaxWidth()
                 .background(colors.bgPaper, Radius.control)
-                .padding(24.dp),
+                .padding(DialogPadding),
         ) {
             Text(title, style = TextStyles.dialogTitle, color = colors.textMain)
             Spacer(Modifier.height(8.dp))
             Text(body, style = TextStyles.body.copy(fontSize = 14.sp, lineHeight = 22.sp), color = colors.textSub)
             Row(
-                Modifier.fillMaxWidth().padding(top = 20.dp),
+                Modifier.fillMaxWidth().padding(top = 13.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
             ) {
                 Btn(dismiss, onClick = onDismiss)
@@ -482,7 +490,7 @@ fun Segments(options: List<String>, selected: Int, onPick: (Int) -> Unit, modifi
             Box(
                 Modifier
                     .weight(1f)
-                    .heightIn(min = 46.dp)
+                    .heightIn(min = 36.dp)
                     .clip(Radius.control)
                     .then(if (on) Modifier.background(colors.bgPaper).border(1.dp, colors.rule, Radius.control) else Modifier)
                     .selectable(selected = on, role = Role.RadioButton, onClick = { onPick(i) })

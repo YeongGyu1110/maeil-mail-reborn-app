@@ -142,7 +142,7 @@ fun SearchScreen(
                     } else {
                         item {
                             Row(
-                                Modifier.fillMaxWidth().padding(start = PaperPadding, end = PaperPadding - 16.dp, top = 8.dp),
+                                Modifier.fillMaxWidth().padding(start = PaperPadding, end = PaperPadding - BtnPadding, top = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text("최근 검색", style = TextStyles.divider, color = colors.textMain, modifier = Modifier.weight(1f))
@@ -245,7 +245,7 @@ private fun SearchField(
     val focused by interaction.collectIsFocusedAsState()
     Row(
         modifier
-            .heightIn(min = 48.dp)
+            .heightIn(min = 40.dp)
             .background(colors.bgPaper, Radius.control)
             .then(if (focused) Modifier.border(1.5.dp, colors.primary, Radius.control) else Modifier)
             .padding(start = 13.dp),
@@ -253,7 +253,7 @@ private fun SearchField(
     ) {
         Icon(LineIcons.Search, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(17.dp))
         Spacer(Modifier.width(10.dp))
-        Box(Modifier.weight(1f).padding(vertical = 8.dp)) {
+        Box(Modifier.weight(1f).padding(vertical = 6.dp)) {
             if (query.isEmpty()) {
                 Text(placeholder, style = TextStyles.body, color = colors.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
@@ -270,7 +270,8 @@ private fun SearchField(
             )
         }
         if (query.isNotEmpty()) {
-            IconBtn(LineIcons.Close, contentDescription = "검색어 지우기", onClick = onClear, tint = colors.textMuted)
+            // 칸 높이에 맞춰 40dp로 둔다. 누르는 자리는 Compose가 48dp까지 넓혀 받는다
+            IconBtn(LineIcons.Close, contentDescription = "검색어 지우기", onClick = onClear, modifier = Modifier.size(40.dp), tint = colors.textMuted)
         } else {
             Spacer(Modifier.width(10.dp))
         }

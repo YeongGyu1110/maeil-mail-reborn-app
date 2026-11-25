@@ -200,7 +200,9 @@ h1#title {
 [data-theme="dark"] .btn-primary, [data-theme="dark"] .btn-primary:active:not(:disabled) { color: #0c1512; }
 .btn-soft { background-color: var(--bg-subtle); }
 .btn-sm { height: 34px; padding: 0 11px; font-size: 13px; }
-#memo-edit { height: 44px; padding: 0 14px; }
+/* 보이는 높이는 다른 버튼과 같고(34px), 손가락으로 누르는 자리만 둘레로 넓힌다 */
+#memo-edit { position: relative; }
+#memo-edit::after { content: ""; position: absolute; inset: -7px -6px; }
 
 /* 글자처럼 보이는 작은 버튼 (웹 .link-btn) */
 .link-btn {
@@ -258,8 +260,8 @@ h1#title {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 44px;
-  margin-bottom: 8px;
+  min-height: 34px;
+  margin-bottom: 10px;
 }
 
 /* 메모 저장소를 고르지 않았을 때의 안내 */
