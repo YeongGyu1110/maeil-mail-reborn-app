@@ -102,7 +102,8 @@ fun ScreenMenu(menu: OpenMenu?, onClose: () -> Unit) {
                     val top = coordinates?.boundsInRoot()?.top ?: 0f
                     val x = (shown.anchor.right.roundToInt() - placeable.width)
                         .coerceIn(edge, (constraints.maxWidth - edge - placeable.width).coerceAtLeast(edge))
-                    val y = (shown.anchor.bottom - top).roundToInt()
+                    // 버튼에서 4dp 띄운다 (웹 .cat-menu top: calc(100% + 4px))
+                    val y = ((shown.anchor.bottom - top).roundToInt() + 4.dp.roundToPx())
                         .coerceIn(edge, (constraints.maxHeight - edge - placeable.height).coerceAtLeast(edge))
                     placeable.place(x, y)
                 }

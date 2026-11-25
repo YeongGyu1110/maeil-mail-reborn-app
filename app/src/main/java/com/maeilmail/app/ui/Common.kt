@@ -34,6 +34,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -220,6 +221,26 @@ fun Btn(
         if (icon != null) Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(16.dp))
         Text(text, style = TextStyles.button, color = color, maxLines = 1)
     }
+}
+
+/** 글자 버튼의 누르는 자리를 글자보다 양옆으로 넓히는 폭. 글자를 여백에 맞출 때 이만큼 당긴다 */
+val LinkBtnPadding: Dp = 8.dp
+
+/** 글자처럼 보이는 작은 버튼 (웹 .link-btn) */
+@Composable
+fun LinkBtn(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Text(
+        text,
+        style = TextStyles.small,
+        fontWeight = FontWeight.SemiBold,
+        color = AppTheme.colors.primary,
+        maxLines = 1,
+        modifier = modifier
+            .minimumInteractiveComponentSize()
+            .clip(Radius.control)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = LinkBtnPadding, vertical = 4.dp),
+    )
 }
 
 /**

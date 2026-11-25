@@ -1,7 +1,6 @@
 package com.maeilmail.app.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -27,7 +26,6 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
@@ -57,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.maeilmail.app.account.Records
 import com.maeilmail.app.data.AREAS
+import com.maeilmail.app.data.Catalog
 import com.maeilmail.app.data.Library
 import com.maeilmail.app.data.Question
 import com.maeilmail.app.data.Settings
@@ -70,10 +69,10 @@ import kotlinx.coroutines.flow.drop
 
 /**
  * 첫 화면: 오늘의 질문과 질문 목록을 한 화면에 둔다.
- * 캔버스에는 상단 바(로고·검색·설정)와 자주 쓰는 필터 칩을, 지면에는 오늘의 질문과 목록을 둔다.
- * 걸린 필터는 칩과 목록 머리에 늘 보이고, 목록 머리는 목록을 내려도 위에 붙어 있다.
+ * 캔버스에는 상단 바(로고·검색·설정)와 필터 한 줄을, 지면에는 오늘의 질문과 목록을 둔다.
+ * 캔버스는 목록을 내려도 그대로라 걸린 필터가 늘 보인다. 목록 머리(개수, 필터 초기화)는 목록과 함께 올라간다.
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     state: Library.State,
@@ -142,7 +141,7 @@ fun HomeScreen(
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().background(colors.bgCanvas)) {
             HomeBar(onBrand = filter::reset, onSearch = onSearch, onSettings = onSettings)
-            FilterChips(filter, received.size, records)
+            FilterBar(catalog, filter, received.size, base, records) { menu = it }
 
             Box(Modifier.weight(1f).fillMaxWidth().background(colors.bgPaper)) {
                 when {
@@ -194,9 +193,7 @@ fun HomeScreen(
                                         TodayLine(today.label, todayQuestion) { onOpen(todayQuestion, fullOrder, ListFilter.DEFAULT_NAME) }
                                     }
                                 }
-                                stickyHeader(key = "head") {
-                                    ListHead(state, filter, shown = visible.size, base = base, records = records) { menu = it }
-                                }
+                                item(key = "head") { ListHead(filter, shown = visible.size, total = base.size) }
                                 if (filter.received && filter.name == "받은 질문" && records.signedIn) {
                                     item(key = "progress") { StudyProgress(received, records) }
                                 }
@@ -234,68 +231,130 @@ private fun HomeBar(onBrand: () -> Unit, onSearch: () -> Unit, onSettings: () ->
     }
 }
 
-/** 자주 쓰는 필터: 늘 보이고 한 번 눌러 걸고 다시 눌러 푼다. 학습 수준은 목록 머리에서 고르므로 여기 두지 않는다 */
+/**
+ * 필터: 받은 질문 · 별표 · 학습 수준 · 카테고리를 한 줄에 둔다 (웹 좁은 화면의 .scopes + .cat-trigger).
+ * 받은 질문과 별표는 한 번 눌러 걸고 다시 눌러 풀고, 학습 수준과 카테고리는 펼쳐서 고른다. 서로 겹쳐 거른다.
+ */
 @Composable
-private fun FilterChips(filter: ListFilter, receivedCount: Int, records: Records.State) {
+private fun FilterBar(
+    catalog: Catalog,
+    filter: ListFilter,
+    receivedCount: Int,
+    base: List<Question>,
+    records: Records.State,
+    onMenu: (OpenMenu) -> Unit,
+) {
     val colors = AppTheme.colors
     ChipRow(Modifier.fillMaxWidth().padding(start = PaperPadding, end = PaperPadding, bottom = 5.dp)) {
         if (receivedCount > 0) {
-            Chip("받은 질문", receivedCount, filter.received, onToggle = { filter.received = !filter.received })
+            Chip(pressed = filter.received, onToggle = { filter.received = !filter.received }) {
+                ChipText("받은 질문", filter.received)
+                ChipCount(receivedCount, filter.received)
+            }
         }
         if (records.signedIn) {
-            Chip("별표", records.items.values.count { it.starred }, filter.starred, onToggle = { filter.starred = !filter.starred }) { tint ->
+            Chip(pressed = filter.starred, onToggle = { filter.starred = !filter.starred }) {
                 Icon(
                     if (filter.starred) LineIcons.StarFilled else LineIcons.Star,
                     contentDescription = null,
-                    tint = if (filter.starred) colors.star else tint,
+                    tint = if (filter.starred) colors.star else colors.textMuted,
                     modifier = Modifier.size(14.dp),
                 )
+                ChipText("별표", filter.starred)
+                ChipCount(records.items.values.count { it.starred }, filter.starred)
+            }
+            Picker(filter.level?.label, "학습 수준", onMenu, dot = filter.level?.let { levelColors(it).third }) { close ->
+                val counts = base.groupingBy { records.level(it.id) }.eachCount()
+                Option("모든 수준", base.size, selected = filter.level == null) { filter.level = null; close() }
+                for (level in Records.Level.entries) {
+                    Option(level.label, counts[level] ?: 0, selected = filter.level == level, dot = levelColors(level).third) {
+                        filter.level = level
+                        close()
+                    }
+                }
+            }
+        }
+        // 칩에는 영역 이름(백엔드)을 빼고 보인다. 행의 번호로 영역을 알 수 있고, 좁은 자리에 카테고리 이름이 더 들어간다
+        val category = AREAS.fold(filter.category) { name, area -> name.removePrefix(area.categoryLabel) }
+        Picker(category.ifEmpty { null }, "카테고리", onMenu) { close ->
+            val counts = base.groupingBy { it.category }.eachCount()
+            Option("모든 카테고리", base.size, selected = filter.category.isEmpty()) { filter.category = ""; close() }
+            for (area in AREAS) {
+                val names = catalog.categories.filter { c -> catalog.questions.any { it.area == area.prefix && it.category == c } }
+                if (names.isEmpty()) continue
+                Text(
+                    area.name,
+                    style = TextStyles.num,
+                    color = colors.textMuted,
+                    modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 2.dp),
+                )
+                for (c in names) {
+                    Option(c.removePrefix(area.categoryLabel), counts[c] ?: 0, selected = c == filter.category) {
+                        filter.category = c
+                        close()
+                    }
+                }
             }
         }
     }
 }
 
-/** 칩 (웹 .scope-filter): 캔버스보다 한 단계 진한 옅은 면. 고르면 면을 더 칠하지 않고 굵은 글자와 선 하나로 알린다 */
+/** 칩의 면 (웹 .scope-filter): 캔버스보다 한 단계 진한 옅은 면. 고르면 면을 더 칠하지 않고 굵은 글자와 선 하나로 알린다 */
 @Composable
-private fun Chip(
-    label: String,
-    count: Int,
-    pressed: Boolean,
-    onToggle: () -> Unit,
-    icon: (@Composable RowScope.(tint: Color) -> Unit)? = null,
-) {
-    val colors = AppTheme.colors
+private fun Modifier.chipSurface(pressed: Boolean): Modifier = this
+    .minimumInteractiveComponentSize()
+    .heightIn(min = ControlHeight)
+    .clip(Radius.control)
+    .background(AppTheme.colors.bgHover)
+    .then(if (pressed) Modifier.border(1.dp, AppTheme.colors.textMuted, Radius.control) else Modifier)
+
+private val ChipPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+
+/** 눌러 걸고 다시 눌러 푸는 칩 */
+@Composable
+private fun Chip(pressed: Boolean, onToggle: () -> Unit, content: @Composable RowScope.() -> Unit) {
     Row(
         Modifier
-            .minimumInteractiveComponentSize()
-            .heightIn(min = ControlHeight)
-            .clip(Radius.control)
-            .background(colors.bgHover)
-            .then(if (pressed) Modifier.border(1.dp, colors.textMuted, Radius.control) else Modifier)
+            .chipSurface(pressed)
             .toggleable(value = pressed, role = Role.Checkbox, onValueChange = { onToggle() })
-            .padding(horizontal = 10.dp, vertical = 4.dp),
+            .padding(ChipPadding),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
-    ) {
-        icon?.invoke(this, colors.textMuted)
-        Text(
-            label,
-            style = TextStyles.button.copy(fontSize = 13.5.sp),
-            fontWeight = if (pressed) FontWeight.Bold else FontWeight.Medium,
-            color = if (pressed) colors.textMain else colors.textSub,
-            maxLines = 1,
-        )
-        Text("$count", style = TextStyles.num, color = if (pressed) colors.textMain else colors.textMuted, maxLines = 1)
-    }
+        content = content,
+    )
 }
 
-/** 칩을 왼쪽부터 글자 폭만큼 놓는다. 다 들어가지 않으면(좁은 화면, 큰 글자) 줄을 바꾼다 */
+@Composable
+private fun ChipText(label: String, pressed: Boolean, modifier: Modifier = Modifier) {
+    val colors = AppTheme.colors
+    Text(
+        label,
+        style = TextStyles.button.copy(fontSize = 13.5.sp),
+        fontWeight = if (pressed) FontWeight.Bold else FontWeight.Medium,
+        color = if (pressed) colors.textMain else colors.textSub,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier,
+    )
+}
+
+@Composable
+private fun ChipCount(count: Int, pressed: Boolean) {
+    val colors = AppTheme.colors
+    Text("$count", style = TextStyles.num, color = if (pressed) colors.textMain else colors.textMuted, maxLines = 1)
+}
+
+/**
+ * 칩을 왼쪽부터 글자 폭만큼 놓고, 마지막 칩(카테고리)은 남는 폭을 채운다 (웹 grid-template-columns: auto minmax(0, 1fr)).
+ * 다 들어가지 않으면(좁은 화면, 큰 글자) 줄을 바꾼다. 마지막 칩은 이름이 길어도 줄을 바꾸지 않고 줄여 보인다.
+ */
 @Composable
 private fun ChipRow(modifier: Modifier, content: @Composable () -> Unit) {
     Layout(content, modifier) { measurables, constraints ->
         val gap = 6.dp.roundToPx()
         val width = constraints.maxWidth
-        val wants = measurables.map { it.maxIntrinsicWidth(Constraints.Infinity).coerceAtMost(width) }
+        val natural = measurables.map { it.maxIntrinsicWidth(Constraints.Infinity).coerceAtMost(width) }
+        val wants = natural.mapIndexed { i, w -> if (i == natural.lastIndex) w.coerceAtMost(88.sp.roundToPx()) else w }
         val rows = ArrayList<MutableList<Int>>()
         var used = 0
         wants.forEachIndexed { i, want ->
@@ -307,9 +366,12 @@ private fun ChipRow(modifier: Modifier, content: @Composable () -> Unit) {
                 used += gap + want
             }
         }
-        val placed = rows.map { row -> row.map { i -> measurables[i].measure(Constraints.fixedWidth(wants[i])) } }
+        val placed = rows.map { row ->
+            val extra = (width - row.sumOf { wants[it] } - gap * (row.size - 1)).coerceAtLeast(0)
+            row.map { i -> measurables[i].measure(Constraints.fixedWidth(wants[i] + if (i == wants.lastIndex) extra else 0)) }
+        }
         val heights = placed.map { row -> row.maxOf { it.height } }
-        layout(width, heights.sum() + gap * (rows.size - 1).coerceAtLeast(0)) {
+        layout(width, heights.sum()) {
             var y = 0
             placed.forEachIndexed { r, row ->
                 var x = 0
@@ -317,113 +379,60 @@ private fun ChipRow(modifier: Modifier, content: @Composable () -> Unit) {
                     p.placeRelative(x, y)
                     x += p.width + gap
                 }
-                y += heights[r] + gap
+                // 칩 둘레에 누르는 자리(투명)가 있어 줄 사이를 더 띄우지 않는다
+                y += heights[r]
             }
         }
     }
 }
 
-/**
- * 목록 머리: 왼쪽에 개수, 오른쪽에 학습 수준과 카테고리를 고르는 버튼.
- * 고른 것은 초록 이름으로 바뀌어, 목록을 내려도 무엇이 걸렸는지 보인다.
- */
+/** 목록 머리 (웹 .list-head): 왼쪽에 개수, 필터가 걸려 있으면 오른쪽에 필터 초기화 */
 @Composable
-private fun ListHead(
-    state: Library.State,
-    filter: ListFilter,
-    shown: Int,
-    base: List<Question>,
-    records: Records.State,
-    onMenu: (OpenMenu) -> Unit,
-) {
-    val colors = AppTheme.colors
-    val catalog = state.catalog
-    Column(Modifier.fillMaxWidth().background(colors.bgPaper)) {
-        Row(
-            Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(start = PaperPadding, end = PaperPadding - 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                if (shown == base.size) "${if (filter.received) "받은 질문" else "질문"} ${shown}개" else "${base.size}개 중 ${shown}개",
-                style = TextStyles.num,
-                color = colors.textMuted,
-                maxLines = 1,
-            )
-            Row(Modifier.weight(1f).padding(start = 8.dp), horizontalArrangement = Arrangement.End) {
-                if (records.signedIn) {
-                    Picker(filter.level?.label, "학습 수준", onMenu) { close ->
-                        val counts = base.groupingBy { records.level(it.id) }.eachCount()
-                        Option("모든 수준", base.size, selected = filter.level == null) { filter.level = null; close() }
-                        for (level in Records.Level.entries) {
-                            Option(level.label, counts[level] ?: 0, selected = filter.level == level, dot = levelColors(level).third) {
-                                filter.level = level
-                                close()
-                            }
-                        }
-                    }
-                }
-                Picker(filter.category.ifEmpty { null }, "카테고리", onMenu, Modifier.weight(1f, fill = false)) { close ->
-                    val counts = base.groupingBy { it.category }.eachCount()
-                    Option("모든 카테고리", base.size, selected = filter.category.isEmpty()) { filter.category = ""; close() }
-                    for (area in AREAS) {
-                        val names = catalog.categories.filter { c -> catalog.questions.any { it.area == area.prefix && it.category == c } }
-                        if (names.isEmpty()) continue
-                        Text(
-                            area.name,
-                            style = TextStyles.num,
-                            color = colors.textMuted,
-                            modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 2.dp),
-                        )
-                        for (c in names) {
-                            Option(c.removePrefix(area.categoryLabel), counts[c] ?: 0, selected = c == filter.category) {
-                                filter.category = c
-                                close()
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        HorizontalDivider(color = colors.rule)
+private fun ListHead(filter: ListFilter, shown: Int, total: Int) {
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(start = PaperPadding, end = PaperPadding - LinkBtnPadding),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            if (shown == total) "${if (filter.received) "받은 질문" else "질문"} ${shown}개" else "${total}개 중 ${shown}개",
+            style = TextStyles.num,
+            color = AppTheme.colors.textMuted,
+            maxLines = 1,
+            modifier = Modifier.weight(1f),
+        )
+        if (filter.active) LinkBtn("필터 초기화", onClick = filter::reset)
     }
 }
 
-/** 누르면 아래로 펼쳐지는 고르기 버튼 (웹 .cat-trigger). 펼친 목록은 화면이 그린다 (ScreenMenu) */
+/** 눌러 펼쳐 고르는 칩 (웹 .cat-trigger). 고르면 그 이름을 보인다. 펼친 목록은 화면이 그린다 (ScreenMenu) */
 @Composable
 private fun Picker(
     value: String?,
     label: String,
     onMenu: (OpenMenu) -> Unit,
-    modifier: Modifier = Modifier,
+    dot: Color? = null,
     menu: @Composable (close: () -> Unit) -> Unit,
 ) {
     val colors = AppTheme.colors
     val bounds = remember { arrayOf(Rect.Zero) }
     Row(
-        modifier
+        Modifier
+            .chipSurface(pressed = value != null)
             .trackBounds { bounds[0] = it }
-            .heightIn(min = 48.dp)
-            .clip(Radius.control)
             .clickable(role = Role.DropdownList, onClickLabel = "$label 고르기") { onMenu(OpenMenu(label, bounds[0], menu)) }
-            .padding(horizontal = 8.dp),
+            .padding(ChipPadding),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Text(
-            value ?: label,
-            style = TextStyles.button.copy(fontSize = 13.5.sp),
-            fontWeight = if (value != null) FontWeight.Bold else FontWeight.Medium,
-            color = if (value != null) colors.primary else colors.textSub,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f, fill = false),
-        )
-        Icon(
-            LineIcons.ChevronDown,
-            contentDescription = null,
-            tint = if (value != null) colors.primary else colors.textMuted,
-            modifier = Modifier.size(15.dp),
-        )
+        Row(Modifier.weight(1f, fill = false), verticalAlignment = Alignment.CenterVertically) {
+            if (dot != null) {
+                Box(Modifier.size(7.dp).background(dot, Radius.dot))
+                Spacer(Modifier.width(6.dp))
+            }
+            ChipText(value ?: label, pressed = value != null, modifier = Modifier.weight(1f, fill = false))
+            Spacer(Modifier.width(4.dp))
+        }
+        Icon(LineIcons.ChevronDown, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(14.dp))
     }
 }
 

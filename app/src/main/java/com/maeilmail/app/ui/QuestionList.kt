@@ -149,7 +149,7 @@ fun StudyProgress(received: List<String>, records: Records.State) {
     val done = received.count { records.level(it) == Records.Level.DONE }
     val review = received.count { records.level(it) == Records.Level.REVIEW }
     val rest = total - done - review
-    Column(Modifier.padding(start = PaperPadding, end = PaperPadding, top = 14.dp, bottom = 4.dp)) {
+    Column(Modifier.padding(start = PaperPadding, end = PaperPadding, top = 2.dp, bottom = 8.dp)) {
         Row(
             Modifier
                 .fillMaxWidth()
@@ -213,6 +213,6 @@ fun EmptyResult(onReset: () -> Unit) {
     ) {
         Text("맞는 질문이 없어요", style = TextStyles.body, color = colors.textMuted)
         Spacer(Modifier.height(10.dp))
-        Btn("필터 풀기", onClick = onReset, kind = BtnKind.Soft)
+        Btn("필터 초기화", onClick = onReset, kind = BtnKind.Soft)
     }
 }
