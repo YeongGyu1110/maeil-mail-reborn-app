@@ -76,6 +76,12 @@ import com.maeilmail.app.ui.theme.TextStyles
 /** 지면 안쪽 여백 (웹 좁은 화면의 문서 여백 20px) */
 val PaperPadding: Dp = 20.dp
 
+/**
+ * 버튼·칩처럼 면이 보이는 것의 높이 (웹 .scope-filter·.cat-trigger 34px).
+ * 손가락으로 누르는 자리 48dp는 면을 키우지 않고 둘레의 투명한 자리로 둔다 (minimumInteractiveComponentSize)
+ */
+val ControlHeight: Dp = 34.dp
+
 /** 누를 수 있는 행의 바탕을 글자보다 양옆으로 넓히는 폭 (웹 .q-row::before inset 0 -8px). 행은 지면 여백에서 이만큼 안쪽에서 시작한다 */
 private val RowBleed: Dp = 8.dp
 val RowInset: Dp = PaperPadding - RowBleed

@@ -3,6 +3,7 @@ package com.maeilmail.app.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,6 +30,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
@@ -232,12 +234,11 @@ private fun HomeBar(onBrand: () -> Unit, onSearch: () -> Unit, onSettings: () ->
     }
 }
 
-/** 자주 쓰는 필터: 늘 보이고 한 번 눌러 걸고 다시 눌러 푼다. 고른 칩은 진하게 칠한다. 학습 수준은 목록 머리에서 고르므로 여기 두지 않는다 */
+/** 자주 쓰는 필터: 늘 보이고 한 번 눌러 걸고 다시 눌러 푼다. 학습 수준은 목록 머리에서 고르므로 여기 두지 않는다 */
 @Composable
 private fun FilterChips(filter: ListFilter, receivedCount: Int, records: Records.State) {
     val colors = AppTheme.colors
-    ChipRow(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 12.dp)) {
-        Chip("전체", count = null, pressed = !filter.active, onToggle = filter::reset)
+    ChipRow(Modifier.fillMaxWidth().padding(start = PaperPadding, end = PaperPadding, bottom = 5.dp)) {
         if (receivedCount > 0) {
             Chip("받은 질문", receivedCount, filter.received, onToggle = { filter.received = !filter.received })
         }
@@ -254,39 +255,41 @@ private fun FilterChips(filter: ListFilter, receivedCount: Int, records: Records
     }
 }
 
+/** 칩 (웹 .scope-filter): 캔버스보다 한 단계 진한 옅은 면. 고르면 면을 더 칠하지 않고 굵은 글자와 선 하나로 알린다 */
 @Composable
 private fun Chip(
     label: String,
-    count: Int?,
+    count: Int,
     pressed: Boolean,
     onToggle: () -> Unit,
     icon: (@Composable RowScope.(tint: Color) -> Unit)? = null,
 ) {
     val colors = AppTheme.colors
-    val ink = if (pressed) colors.bgPaper else colors.textMain
     Row(
         Modifier
-            .heightIn(min = 40.dp)
+            .minimumInteractiveComponentSize()
+            .heightIn(min = ControlHeight)
             .clip(Radius.control)
-            .background(if (pressed) colors.textMain else colors.bgPaper)
+            .background(colors.bgHover)
+            .then(if (pressed) Modifier.border(1.dp, colors.textMuted, Radius.control) else Modifier)
             .toggleable(value = pressed, role = Role.Checkbox, onValueChange = { onToggle() })
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+            .padding(horizontal = 10.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
     ) {
-        icon?.invoke(this, ink)
+        icon?.invoke(this, colors.textMuted)
         Text(
             label,
             style = TextStyles.button.copy(fontSize = 13.5.sp),
             fontWeight = if (pressed) FontWeight.Bold else FontWeight.Medium,
-            color = ink,
+            color = if (pressed) colors.textMain else colors.textSub,
             maxLines = 1,
         )
-        if (count != null) Text("$count", style = TextStyles.num, color = if (pressed) ink else colors.textMuted, maxLines = 1)
+        Text("$count", style = TextStyles.num, color = if (pressed) colors.textMain else colors.textMuted, maxLines = 1)
     }
 }
 
-/** 칩을 한 줄에 채워 놓는다. 남는 폭은 고르게 나누고, 다 들어가지 않으면(좁은 화면, 큰 글자) 줄을 바꾼다 */
+/** 칩을 왼쪽부터 글자 폭만큼 놓는다. 다 들어가지 않으면(좁은 화면, 큰 글자) 줄을 바꾼다 */
 @Composable
 private fun ChipRow(modifier: Modifier, content: @Composable () -> Unit) {
     Layout(content, modifier) { measurables, constraints ->
@@ -304,13 +307,7 @@ private fun ChipRow(modifier: Modifier, content: @Composable () -> Unit) {
                 used += gap + want
             }
         }
-        val placed = rows.map { row ->
-            val extra = width - row.sumOf { wants[it] } - gap * (row.size - 1)
-            row.mapIndexed { n, i ->
-                val w = wants[i] + extra / row.size + if (n == row.lastIndex) extra % row.size else 0
-                measurables[i].measure(Constraints.fixedWidth(w))
-            }
-        }
+        val placed = rows.map { row -> row.map { i -> measurables[i].measure(Constraints.fixedWidth(wants[i])) } }
         val heights = placed.map { row -> row.maxOf { it.height } }
         layout(width, heights.sum() + gap * (rows.size - 1).coerceAtLeast(0)) {
             var y = 0
