@@ -51,6 +51,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -83,6 +84,13 @@ val PaperPadding: Dp = 20.dp
  * 손가락으로 누르는 자리 48dp는 면을 키우지 않고 둘레의 투명한 자리로 둔다 (minimumInteractiveComponentSize)
  */
 val ControlHeight: Dp = 34.dp
+
+/**
+ * 글자 옆에 서는 아이콘의 크기. 휴대폰의 글자 크기 설정을 따라 글자와 같은 비율로 바뀐다 (0.8~1.3배).
+ * 글자만 줄고 아이콘이 그대로면 아이콘이 글자보다 커 보인다
+ */
+@Composable
+fun scaledIcon(base: Dp): Dp = base * LocalDensity.current.fontScale.coerceIn(0.8f, 1.3f)
 
 /** 누를 수 있는 행의 바탕을 글자보다 양옆으로 넓히는 폭 (웹 .q-row::before inset 0 -8px). 행은 지면 여백에서 이만큼 안쪽에서 시작한다 */
 private val RowBleed: Dp = 8.dp
@@ -120,7 +128,7 @@ fun PageBar(title: String, onBack: () -> Unit, trailing: @Composable RowScope.()
                     .padding(horizontal = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(LineIcons.ArrowLeft, contentDescription = "뒤로", tint = colors.textSub, modifier = Modifier.size(20.dp))
+                Icon(LineIcons.ArrowLeft, contentDescription = "뒤로", tint = colors.textSub, modifier = Modifier.size(scaledIcon(20.dp)))
                 Spacer(Modifier.width(8.dp))
                 Text(title, style = TextStyles.pageTitle, color = colors.textMain, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
@@ -166,7 +174,7 @@ fun IconBtn(
             .clickable(enabled = enabled, role = Role.Button, onClickLabel = contentDescription, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = contentDescription, tint = tint, modifier = Modifier.size(iconSize))
+        Icon(icon, contentDescription = contentDescription, tint = tint, modifier = Modifier.size(scaledIcon(iconSize)))
     }
 }
 
@@ -223,7 +231,7 @@ fun Btn(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
     ) {
-        if (icon != null) Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(16.dp))
+        if (icon != null) Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(scaledIcon(16.dp)))
         Text(text, style = TextStyles.button, color = color, maxLines = 1)
     }
 }
@@ -467,7 +475,7 @@ fun StarButton(starred: Boolean, onToggle: () -> Unit, modifier: Modifier = Modi
             if (starred) LineIcons.StarFilled else LineIcons.Star,
             contentDescription = if (starred) "별표 떼기" else "별표하기",
             tint = if (starred) colors.star else colors.textMuted,
-            modifier = Modifier.size(18.dp),
+            modifier = Modifier.size(scaledIcon(18.dp)),
         )
     }
 }

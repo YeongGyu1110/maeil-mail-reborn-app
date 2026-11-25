@@ -210,7 +210,7 @@ private fun HistoryRow(text: String, onPick: () -> Unit, onRemove: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Icon(LineIcons.Clock, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(16.dp))
+            Icon(LineIcons.Clock, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(scaledIcon(16.dp)))
             Text(text, style = TextStyles.body, color = colors.textMain, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         IconBtn(LineIcons.Close, contentDescription = "$text 지우기", onClick = onRemove, tint = colors.textMuted, iconSize = 16.dp)
@@ -251,7 +251,7 @@ private fun SearchField(
             .padding(start = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(LineIcons.Search, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(17.dp))
+        Icon(LineIcons.Search, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(scaledIcon(17.dp)))
         Spacer(Modifier.width(10.dp))
         Box(Modifier.weight(1f).padding(vertical = 6.dp)) {
             if (query.isEmpty()) {

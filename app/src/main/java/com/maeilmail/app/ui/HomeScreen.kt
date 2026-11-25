@@ -258,7 +258,7 @@ private fun FilterBar(
                     if (filter.starred) LineIcons.StarFilled else LineIcons.Star,
                     contentDescription = null,
                     tint = if (filter.starred) colors.star else colors.textMuted,
-                    modifier = Modifier.size(14.dp),
+                    modifier = Modifier.size(scaledIcon(14.dp)),
                 )
                 ChipText("별표", filter.starred)
                 ChipCount(records.items.values.count { it.starred }, filter.starred)
@@ -432,7 +432,7 @@ private fun Picker(
             ChipText(value ?: label, pressed = value != null, modifier = Modifier.weight(1f, fill = false))
             Spacer(Modifier.width(4.dp))
         }
-        Icon(LineIcons.ChevronDown, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(14.dp))
+        Icon(LineIcons.ChevronDown, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(scaledIcon(15.dp)))
     }
 }
 
