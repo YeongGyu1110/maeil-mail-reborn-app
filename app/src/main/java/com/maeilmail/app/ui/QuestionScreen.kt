@@ -160,6 +160,8 @@ fun QuestionScreen(
                                 if (payload.optBoolean("left")) action() else stay()
                             }
                             "toast" -> payload.optString("text").takeIf { it.isNotEmpty() }?.let(Records::notify)
+                            // 메모 창을 열면 기록을 새로 읽는다 (다른 기기에서 방금 저장한 초안이나 메모로 열도록). 바뀌면 setStudy로 간다
+                            "refreshRecords" -> Records.refresh(force = true)
                             "navigate" -> memoId.takeIf { it in order }?.let { to -> leave { onNavigate(to) } }
                             "pickRepo" -> pickingRepo = true
                             "confirm" -> {

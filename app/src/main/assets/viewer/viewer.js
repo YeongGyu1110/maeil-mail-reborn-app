@@ -133,11 +133,29 @@
       resetMemo();
       return;
     }
-    // 메모 창을 연 동안에는 쓰던 글을 그대로 둔다. 그사이 다른 곳에서 바뀐 것은 저장할 때 새로 읽어 합친다
-    if (editor) editor.setHasMemo(Boolean(memoText()));
-    else renderMemo();
+    if (!editor) renderMemo();
+    else adoptRecords();
     moveOldDrafts();
   };
+
+  // 메모 창을 연 뒤 새로 읽은 기록이 오면(메모 창을 열 때 앱이 다시 읽는다): 아직 쓰기 시작하지 않았으면 최신 초안(없으면 메모)으로
+  // 바꾸고 알린다. 쓰기 시작했으면 그대로 두고, 저장할 때 새로 읽어 합친다 (웹 renderRecords와 같다)
+  function adoptRecords() {
+    editor.setHasMemo(Boolean(memoText()));
+    if (hasUnsaved() || conflict || saving || draftSaving) return;
+    const previous = session;
+    const next = sessionFromRecords();
+    if (next.saved === previous.saved && next.draftAt === previous.draftAt) return;
+    session = next;
+    editor.setText(next.saved);
+    renderDraftState();
+    renderSaveButton();
+    toast(next.draftAt && next.draftAt !== previous.draftAt
+      ? '다른 곳에서 저장한 초안으로 바꿨어요.'
+      : !next.draftAt && previous.draftAt
+        ? '다른 곳에서 이 초안을 메모로 저장했거나 지워서, 지금 메모로 바꿨어요.'
+        : '다른 곳에서 바뀐 메모로 바꿨어요.');
+  }
 
   // 앱이 저장 결과와 함께 넘긴 이 질문의 최신 기록으로 바꾼다 (화면 상태가 바뀌어 setStudy가 오기 전에 바로 그리려고).
   // 그사이 다른 질문으로 넘어갔으면 버린다 (예전 질문의 기록으로 새 질문의 메모를 그리지 않게)
@@ -407,6 +425,9 @@
     editor.focus();
     renderDraftState();
     renderSaveButton();
+    // 앱은 기록을 열 때 1분이 지났을 때만 다시 읽어, 다른 기기에서 방금 저장한 초안이나 메모가 아직 없을 수 있다.
+    // 메모 창을 열면 앱이 새로 읽고, 바뀌었으면 setStudy로 넘긴다 (adoptRecords)
+    tell('refreshRecords');
   }
 
   // 메모 창을 연다: 질문 화면의 위아래 막대를 가리고(앱이 한다) 옆에서 조금 밀려 들어오며 나타난다 (앱의 화면 옮기기와 같다)
