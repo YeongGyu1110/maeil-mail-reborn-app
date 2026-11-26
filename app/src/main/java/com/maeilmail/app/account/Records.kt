@@ -51,9 +51,6 @@ object Records {
     /** 다시 읽기까지 기다리는 시간 */
     private const val STALE_MS = 60_000L
 
-    /** 메모를 저장하기 전에, 기록을 읽은 지 이만큼 지났으면 다시 읽어 다른 곳에서 바뀌었는지 본다 (웹 STALE_AFTER) */
-    private const val CONFLICT_STALE_MS = 5 * 60_000L
-
     /** 이해도·별표를 바꾼 뒤 이만큼 모았다가 보낸다 */
     private const val FLUSH_DELAY_MS = 600L
     private const val RETRY_BASE_MS = 2_000L
@@ -262,18 +259,6 @@ object Records {
     private fun Map<String, Any?>.at(): Long = (this["memoAt"] as? Number)?.toLong() ?: 0
 
     /**
-     * 메모를 저장하기 직전에 다른 곳에서 바뀌었는지 보려고 부른다 (웹 confirmNoConflict).
-     * 기록을 읽은 지 5분이 지났으면 다시 읽고(보낼 변경이 남아 있으면 읽지 않는다), 지금 이 질문의 메모를 돌려준다
-     */
-    suspend fun latestMemo(id: String): String {
-        if (signedIn() && pending.isEmpty() && System.currentTimeMillis() - loadedAt >= CONFLICT_STALE_MS) {
-            loadJob?.join()
-            if (System.currentTimeMillis() - loadedAt >= CONFLICT_STALE_MS) load()
-        }
-        return _state.value.item(id).memo.orEmpty()
-    }
-
-    /**
      * 저장 직전에 이 질문의 메모와 초안을 서버에서 새로 읽는다 (다른 기기에서 바뀌었는지 보려고. 웹 fetchLatest).
      * 이 기기에서 아직 보내지 못한 변경은 이 기기에서 더 나중에 한 것이므로 읽은 값 위에 덮는다. 읽지 못하면 null
      */
@@ -420,28 +405,25 @@ object Records {
 
     /**
      * 메모를 저장한다 (웹 saveMemo와 같다). 빈 글이면 메모를 지우고, 저장소의 {id}.md 파일도 지운다.
-     * commit이 false면 임시저장이다: 계정에만 쓰고 GitHub에는 올리지 않으며 알림도 띄우지 않는다.
      * 바뀐 것이 없어도 아직 올리지 않은 메모면 커밋한다. title은 커밋 메시지에 붙일 질문 제목이다.
      * dropDraft: 이 질문의 초안도 같은 쓰기로 지운다 (초안을 메모로 저장했거나, 메모와 함께 지울 때).
      *   이 기기의 기록에 초안이 없어도 지운다. 다른 곳에서 저장한 초안을 편집기에서 합쳤을 수 있기 때문이다 (없는 문서를 지워도 오류가 아니다).
      *   메모만 다시 올릴 때(GitHub 재커밋)는 주지 않는다. 쓰던 초안은 그대로 둔다.
      */
-    suspend fun saveMemo(id: String, raw: String, title: String, commit: Boolean = true, dropDraft: Boolean = false): MemoResult {
+    suspend fun saveMemo(id: String, raw: String, title: String, dropDraft: Boolean = false): MemoResult {
         val text = normalizeMemo(raw)
         val item = _state.value.item(id)
         val changed = text != item.memo.orEmpty()
         val repo = memoRepo?.fullName
-        val committable = text.isNotEmpty() && repo != null && signedIn()
-        val shouldCommit = commit && committable && (changed || item.memoUncommitted)
-        val shouldRemoveFile = commit && text.isEmpty() && changed && repo != null && signedIn()
+        val shouldCommit = text.isNotEmpty() && repo != null && signedIn() && (changed || item.memoUncommitted)
+        val shouldRemoveFile = text.isEmpty() && changed && repo != null && signedIn()
         if (!changed && !shouldCommit && !dropDraft) return MemoResult(saved = true, changed = false, committed = null)
 
         val write = changed || dropDraft
         val fields = LinkedHashMap<String, Any?>()
         if (changed) {
-            // 커밋할 때는 성공했다고 보고 표시를 지워 둔다 (실패하면 아래에서 다시 켠다). 임시저장이면 켠다
-            val uncommitted = if (!commit && committable) true else null
-            fields += if (text.isNotEmpty()) mapOf("memo" to text, "memoAt" to System.currentTimeMillis(), "memoUncommitted" to uncommitted)
+            // 커밋할 때는 성공했다고 보고 표시를 지워 둔다 (실패하면 아래에서 다시 켠다)
+            fields += if (text.isNotEmpty()) mapOf("memo" to text, "memoAt" to System.currentTimeMillis(), "memoUncommitted" to null)
             else mapOf("memo" to null, "memoAt" to null, "memoUncommitted" to null)
         }
         if (dropDraft) fields[DRAFT_FIELD] = null
@@ -477,13 +459,12 @@ object Records {
             !saved || !flagged -> "저장하지 못했어요. 바꾼 내용은 이 기기에 보관했다가 연결되면 저장할게요."
             error != null && shouldRemoveFile -> "메모는 지웠지만 GitHub의 $id.md 파일을 지우지 못했어요. ${GitHubApi.errorMessage(error)}"
             error != null -> "메모는 저장했지만 GitHub에 올리지 못했어요. ${GitHubApi.errorMessage(error)}"
-            !commit -> null
             shouldCommit -> "메모를 저장하고 ${repo}에 커밋했어요."
             shouldRemoveFile && github.getOrNull() == true -> "메모를 지우고 ${repo}의 $id.md 파일도 삭제했어요."
             text.isNotEmpty() -> "메모를 저장했어요."
             else -> "메모를 지웠어요."
         }
-        if (message != null) _state.update { it.copy(notice = message) }
+        notify(message)
         return MemoResult(
             saved = saved && flagged,
             changed = changed,
@@ -585,6 +566,9 @@ object Records {
     fun clearError() = _state.update { it.copy(error = null) }
 
     fun clearNotice() = _state.update { it.copy(notice = null) }
+
+    /** 화면 아래 알림으로 한 번 보여준다 (메모 저장 결과, 메모 창의 안내 등) */
+    fun notify(message: String) = _state.update { it.copy(notice = message) }
 
     // ---------- 화면에 보일 상태 ----------
 
