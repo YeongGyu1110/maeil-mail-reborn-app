@@ -24,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -92,9 +93,10 @@ private fun QuestionRow(q: Question, first: Boolean, records: Records.State, onC
             Spacer(Modifier.height(2.dp))
             Text(q.title, style = TextStyles.rowTitle, color = colors.textMain, maxLines = 3, overflow = TextOverflow.Ellipsis)
             val memo = item.memo
-            if (q.categoryName.isNotEmpty() || memo != null) {
+            val draft = item.draft != null
+            if (q.categoryName.isNotEmpty() || memo != null || draft) {
                 Spacer(Modifier.height(2.dp))
-                // 분류 · ✎ 메모 한 줄 (웹 .q-meta: 마크다운 기호를 뺀 미리보기)
+                // 분류 · ✎ 메모 한 줄 (웹 .q-meta: 마크다운 기호를 뺀 미리보기) · 초안 (메모와 따로 저장해 둔 초안이 있을 때)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (q.categoryName.isNotEmpty()) {
                         Text(q.categoryName, style = TextStyles.small, color = colors.textMuted, maxLines = 1)
@@ -103,13 +105,19 @@ private fun QuestionRow(q: Question, first: Boolean, records: Records.State, onC
                         if (q.categoryName.isNotEmpty()) Text(" · ", style = TextStyles.small, color = colors.textMuted)
                         Icon(LineIcons.Pencil, contentDescription = "메모", tint = colors.primary, modifier = Modifier.size(12.dp))
                         Spacer(Modifier.width(5.dp))
+                        // 메모가 길어도 뒤의 '초안'이 보이도록 메모 쪽이 줄어든다 (웹 .q-draft는 줄어들지 않는다)
                         Text(
                             remember(memo) { memoPlainText(memo) },
                             style = TextStyles.small,
                             color = colors.textSub,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
                         )
+                    }
+                    if (draft) {
+                        if (q.categoryName.isNotEmpty() || memo != null) Text(" · ", style = TextStyles.small, color = colors.textMuted)
+                        Text("초안", style = TextStyles.small, fontWeight = FontWeight.SemiBold, color = colors.review, maxLines = 1)
                     }
                 }
             }
