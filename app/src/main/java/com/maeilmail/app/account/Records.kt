@@ -24,14 +24,16 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * 학습 기록(이해도·별표·메모)과 메모 저장소 설정. 웹과 같은 Firestore 문서를 함께 쓴다.
- *   users/{uid}            items: { "fe-1": { level, starred } }, memoRepo: { id, fullName }
- *   users/{uid}/memos/{n}  { "fe-1": { memo, memoAt, memoUncommitted } }  (n = 질문 번호 % 4)
+ * 학습 기록(이해도·별표·메모·메모 초안)과 메모 저장소 설정. 웹과 같은 Firestore 문서를 함께 쓴다.
+ *   users/{uid}             items: { "fe-1": { level, starred } }, memoRepo: { id, fullName }
+ *   users/{uid}/memos/{n}   { "fe-1": { memo, memoAt, memoUncommitted } }  (n = 질문 번호 % 4)
+ *   users/{uid}/drafts/{id} { text, at, base }  (메모와 따로 저장해 둔 초안. 질문마다 문서 하나)
  *
  * - 읽기: 로그인한 뒤, 그리고 앱을 열 때 1분이 지났으면 다시 읽는다. 마지막으로 읽은 기록은 기기에 두어 인터넷 없이도 보인다.
  * - 쓰기: 바꾼 것은 바로 화면에 보이고, 잠깐 모아 한 번에 보낸다 (웹과 같은 필드 단위 merge 쓰기를 한 번의 batch로).
  *   보내지 못한 변경은 기기에 보관했다가 연결되면 보낸다. 다시 읽어도 보관한 변경을 위에 덮어, 이 기기에서 나중에 바꾼 것이 이긴다.
- * - 메모는 화면에서는 학습 수준·별표와 한 항목으로 다루고, 쓸 때만 묶음 문서로 나눈다 (웹 createFirestoreBackend와 같다).
+ * - 메모와 초안은 화면에서는 학습 수준·별표와 한 항목으로 다루고(초안은 draft 필드), 쓸 때만 묶음 문서와 초안 문서로 나눈다
+ *   (웹 createFirestoreBackend와 같다).
  */
 object Records {
     const val MEMO_MAX = 3000
@@ -39,6 +41,12 @@ object Records {
     /** 메모 묶음 문서 수. 바꾸면 웹의 MEMO_SHARDS와 firestore.rules도 같이 바꾼다 */
     private const val MEMO_SHARDS = 4
     private val MEMO_FIELDS = setOf("memo", "memoAt", "memoUncommitted")
+
+    /** 항목에서 초안이 들어가는 필드 (웹 memo-core.js의 DRAFT_FIELD). 값은 { text, at, base } 지도, 지우면 null */
+    internal const val DRAFT_FIELD = "draft"
+
+    /** 초안 문서 ID가 될 수 있는 질문 ID (firestore.rules의 초안 규칙과 같다) */
+    private val QUESTION_ID = Regex("^(fe|be)-[0-9]+$")
 
     /** 다시 읽기까지 기다리는 시간 */
     private const val STALE_MS = 60_000L
@@ -67,9 +75,39 @@ object Records {
         val memo: String? = null,
         /** 메모를 저장한 시각 (epoch ms) */
         val memoAt: Long? = null,
-        /** 계정에는 저장했지만 GitHub에는 아직 올리지 않은 메모 (임시저장, 커밋 실패) */
+        /** 계정에는 저장했지만 GitHub에는 아직 올리지 않은 메모 (예전 임시저장, 커밋 실패) */
         val memoUncommitted: Boolean = false,
+        /** 메모와 따로 저장해 둔 초안 (없으면 null) */
+        val draft: Draft? = null,
     )
+
+    /**
+     * 메모 초안: 메모는 그대로 두고 쓰던 글만 계정에 저장한 것. 휴대폰과 PC가 함께 쓴다.
+     * text: 쓰던 글, at: 저장한 시각 (epoch ms), base: 이 초안을 쓰기 시작할 때의 메모 (다른 곳의 변경과 합칠 때 기준)
+     */
+    data class Draft(val text: String, val at: Long, val base: String) {
+        fun toMap(): Map<String, Any?> = mapOf("text" to text, "at" to at, "base" to base)
+
+        /** 계정에 저장할 수 있는지 (firestore.rules의 초안 규칙과 같다: 글과 기준 글은 MEMO_MAX자까지).
+         *  규칙에 어긋난 초안이 대기열에 들어가면 같은 쓰기로 묶인 다른 변경까지 모두 거부되므로, 넣기 전에 거른다.
+         *  글자 수는 규칙(문자 수)보다 엄격하게 UTF-16 단위로 센다 (편집기의 글자 수 제한과 같은 단위) */
+        fun storable(): Boolean = text.length <= MEMO_MAX && base.length <= MEMO_MAX
+
+        companion object {
+            /** 저장소에서 읽은 초안을 정해진 모양으로 맞춘다 (모양이 다르면 없는 것으로 본다. 웹 cleanDraft) */
+            fun from(value: Any?): Draft? {
+                val map = value as? Map<*, *> ?: return null
+                val text = map["text"] as? String ?: return null
+                return Draft(text, (map["at"] as? Number)?.toLong() ?: 0, map["base"] as? String ?: "")
+            }
+        }
+    }
+
+    /** 초안 저장 결과. saved: 계정에 썼는지 (못 썼으면 기기에 보관했다가 보낸다), draft: 저장한 초안 (저장할 수 없는 초안이면 null) */
+    data class DraftResult(val saved: Boolean, val draft: Draft?)
+
+    /** 저장 직전에 새로 읽은 이 질문의 메모와 초안 */
+    data class Latest(val memo: String, val draft: Draft?)
 
     data class MemoRepo(val id: Long, val fullName: String)
 
@@ -153,12 +191,23 @@ object Records {
         try {
             val uid = Account.state.value.user?.uid ?: return
             val token = Account.firebaseIdToken()
-            val (doc, shards) = coroutineScope {
+            val (doc, shards, drafts) = coroutineScope {
                 val main = async { io { FirestoreRest.get(token, "users/$uid") } }
                 val memos = async { io { FirestoreRest.list(token, "users/$uid/memos") } }
-                main.await() to memos.await()
+                // 초안을 읽지 못해도(초안 규칙을 배포하기 전 등) 다른 기록은 보여준다. 연결 오류는 다른 읽기와 같이 실패로 본다
+                val drafts = async {
+                    io {
+                        try {
+                            FirestoreRest.list(token, "users/$uid/drafts")
+                        } catch (e: Exception) {
+                            if (isNetworkError(e)) throw e
+                            emptyMap()
+                        }
+                    }
+                }
+                Triple(main.await(), memos.await(), drafts.await())
             }
-            applyLoaded(doc, shards)
+            applyLoaded(doc, shards, drafts)
             loadedAt = System.currentTimeMillis()
             io { writeSnapshot() }
             _state.update { it.copy(error = null) }
@@ -173,8 +222,12 @@ object Records {
         }
     }
 
-    /** 기본 문서와 메모 묶음을 합친다. 기본 문서에 남은 예전 메모는 더 나중에 저장한 쪽을 쓴다 (웹 load와 같다) */
-    private fun applyLoaded(doc: Map<String, Any?>?, shards: Map<String, Map<String, Any?>>) {
+    /** 기본 문서와 메모 묶음, 초안 문서를 합친다. 기본 문서에 남은 예전 메모는 더 나중에 저장한 쪽을 쓴다 (웹 load와 같다) */
+    private fun applyLoaded(
+        doc: Map<String, Any?>?,
+        shards: Map<String, Map<String, Any?>>,
+        drafts: Map<String, Map<String, Any?>>,
+    ) {
         val memos = HashMap<String, Map<String, Any?>>()
         for ((_, fields) in shards) {
             for ((id, memo) in fields) {
@@ -195,6 +248,10 @@ object Records {
             if (memos[id] == null || memo.at() > memos[id].orEmpty().at()) memos[id] = memo
         }
         for ((id, memo) in memos) items[id] = items[id].orEmpty() + memo
+        for ((id, fields) in drafts) {
+            val draft = Draft.from(fields) ?: continue
+            items[id] = items[id].orEmpty() + (DRAFT_FIELD to draft.toMap())
+        }
         server = items
         memoRepo = (doc?.get("memoRepo") as? Map<*, *>)?.let { repo ->
             val name = repo["fullName"] as? String ?: return@let null
@@ -214,6 +271,33 @@ object Records {
             if (System.currentTimeMillis() - loadedAt >= CONFLICT_STALE_MS) load()
         }
         return _state.value.item(id).memo.orEmpty()
+    }
+
+    /**
+     * 저장 직전에 이 질문의 메모와 초안을 서버에서 새로 읽는다 (다른 기기에서 바뀌었는지 보려고. 웹 fetchLatest).
+     * 이 기기에서 아직 보내지 못한 변경은 이 기기에서 더 나중에 한 것이므로 읽은 값 위에 덮는다. 읽지 못하면 null
+     */
+    suspend fun latest(id: String): Latest? {
+        val uid = Account.state.value.user?.uid ?: return null
+        return try {
+            val token = Account.firebaseIdToken()
+            val (shard, draftDoc) = coroutineScope {
+                val memo = async { io { FirestoreRest.get(token, "users/$uid/memos/${memoShard(id)}") } }
+                val draft = async { io { FirestoreRest.get(token, "users/$uid/drafts/$id") } }
+                memo.await() to draft.await()
+            }
+            var memo = ((shard?.get(id) as? Map<*, *>)?.get("memo") as? String).orEmpty()
+            // 묶음으로 옮기지 못하고 기본 문서에 남은 예전 메모 (웹이 옮긴다). 묶음에 없으면 읽어 둔 것을 쓴다
+            if (memo.isEmpty() && id in legacy) memo = server[id]?.get("memo") as? String ?: ""
+            var draft = Draft.from(draftDoc)
+            val mine = pending[id]
+            if (mine != null && mine.containsKey("memo")) memo = (mine["memo"] as? String).orEmpty()
+            if (mine != null && mine.containsKey(DRAFT_FIELD)) draft = Draft.from(mine[DRAFT_FIELD])
+            Latest(memo, draft)
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            null
+        }
     }
 
     // ---------- 쓰기: 이해도·별표 ----------
@@ -292,14 +376,21 @@ object Records {
     }
 
     /**
-     * 변경을 Firestore 쓰기로 나눈다: 학습 수준·별표는 기본 문서, 메모는 묶음 문서 (웹 write와 같다).
+     * 변경을 Firestore 쓰기로 나눈다: 학습 수준·별표는 기본 문서, 메모는 묶음 문서, 초안은 질문마다 초안 문서 (웹 write와 같다).
      * 메모를 지우면 묶음에서 질문 항목째 지우고, 기본 문서에 예전 메모가 남아 있으면 그것도 지운다.
+     * 초안은 문서를 통째로 바꾸고, 지우면 문서를 지운다.
      */
     internal fun writesFor(uid: String, patch: Map<String, Map<String, Any?>>): List<FirestoreRest.Write> {
         val main = FirestoreRest.Write("users/$uid")
         val shards = sortedMapOf<Int, FirestoreRest.Write>()
+        val drafts = mutableListOf<FirestoreRest.Write>()
         for ((id, fields) in patch) {
-            for ((key, value) in fields) if (key !in MEMO_FIELDS) main.set("items", id, key, value = value)
+            for ((key, value) in fields) if (key !in MEMO_FIELDS && key != DRAFT_FIELD) main.set("items", id, key, value = value)
+            if (fields.containsKey(DRAFT_FIELD)) {
+                val draft = Draft.from(fields[DRAFT_FIELD])
+                val path = "users/$uid/drafts/$id"
+                drafts += if (draft != null) FirestoreRest.Write.replace(path, draft.toMap()) else FirestoreRest.Write.delete(path)
+            }
             val memoFields = fields.filterKeys { it in MEMO_FIELDS }
             if (memoFields.isEmpty()) continue
             val shard = shards.getOrPut(memoShard(id)) { FirestoreRest.Write("users/$uid/memos/${memoShard(id)}") }
@@ -313,7 +404,7 @@ object Records {
                 main.set("items", id, "memoAt", value = null)
             }
         }
-        return listOf(main) + shards.values
+        return listOf(main) + shards.values + drafts
     }
 
     /** 메모가 들어갈 묶음 문서: 질문 번호를 묶음 수로 나눈 나머지 (fe-17 → 17 % 4 → memos/1) */
@@ -331,8 +422,11 @@ object Records {
      * 메모를 저장한다 (웹 saveMemo와 같다). 빈 글이면 메모를 지우고, 저장소의 {id}.md 파일도 지운다.
      * commit이 false면 임시저장이다: 계정에만 쓰고 GitHub에는 올리지 않으며 알림도 띄우지 않는다.
      * 바뀐 것이 없어도 아직 올리지 않은 메모면 커밋한다. title은 커밋 메시지에 붙일 질문 제목이다.
+     * dropDraft: 이 질문의 초안도 같은 쓰기로 지운다 (초안을 메모로 저장했거나, 메모와 함께 지울 때).
+     *   이 기기의 기록에 초안이 없어도 지운다. 다른 곳에서 저장한 초안을 편집기에서 합쳤을 수 있기 때문이다 (없는 문서를 지워도 오류가 아니다).
+     *   메모만 다시 올릴 때(GitHub 재커밋)는 주지 않는다. 쓰던 초안은 그대로 둔다.
      */
-    suspend fun saveMemo(id: String, raw: String, title: String, commit: Boolean = true): MemoResult {
+    suspend fun saveMemo(id: String, raw: String, title: String, commit: Boolean = true, dropDraft: Boolean = false): MemoResult {
         val text = normalizeMemo(raw)
         val item = _state.value.item(id)
         val changed = text != item.memo.orEmpty()
@@ -340,22 +434,22 @@ object Records {
         val committable = text.isNotEmpty() && repo != null && signedIn()
         val shouldCommit = commit && committable && (changed || item.memoUncommitted)
         val shouldRemoveFile = commit && text.isEmpty() && changed && repo != null && signedIn()
-        if (!changed && !shouldCommit) return MemoResult(saved = true, changed = false, committed = null)
+        if (!changed && !shouldCommit && !dropDraft) return MemoResult(saved = true, changed = false, committed = null)
 
+        val write = changed || dropDraft
+        val fields = LinkedHashMap<String, Any?>()
         if (changed) {
             // 커밋할 때는 성공했다고 보고 표시를 지워 둔다 (실패하면 아래에서 다시 켠다). 임시저장이면 켠다
             val uncommitted = if (!commit && committable) true else null
-            update(
-                id,
-                if (text.isNotEmpty()) mapOf("memo" to text, "memoAt" to System.currentTimeMillis(), "memoUncommitted" to uncommitted)
-                else mapOf("memo" to null, "memoAt" to null, "memoUncommitted" to null),
-                flushSoon = false,
-            )
+            fields += if (text.isNotEmpty()) mapOf("memo" to text, "memoAt" to System.currentTimeMillis(), "memoUncommitted" to uncommitted)
+            else mapOf("memo" to null, "memoAt" to null, "memoUncommitted" to null)
         }
+        if (dropDraft) fields[DRAFT_FIELD] = null
+        if (write) update(id, fields, flushSoon = false)
 
         // 계정 저장과 GitHub 커밋(또는 파일 삭제)을 함께 한다
         val (saved, github) = coroutineScope {
-            val save = async { if (changed) flushNow() else true }
+            val save = async { if (write) flushNow() else true }
             val git = async {
                 runCatching {
                     when {
@@ -395,6 +489,58 @@ object Records {
             changed = changed,
             committed = if (shouldCommit || shouldRemoveFile) github.isSuccess else null,
         )
+    }
+
+    // ---------- 쓰기: 메모 초안 ----------
+
+    /**
+     * 초안을 저장한다 (웹 saveDraft). 메모는 그대로 두고 쓰던 글만 계정에 저장한다. base는 이 초안을 시작할 때의 메모다.
+     * 쓰지 못해도 초안은 이 기기에 보관되고, 연결되면 다시 보낸다.
+     * 계정에 저장할 수 없는 초안(글이나 기준 글이 MEMO_MAX자를 넘음)은 대기열에 넣지 않고 draft = null을 돌려준다.
+     */
+    suspend fun saveDraft(id: String, raw: String, base: String): DraftResult {
+        val draft = Draft(normalizeMemo(raw), System.currentTimeMillis(), base)
+        if (!draft.storable() || !signedIn()) return DraftResult(saved = false, draft = null)
+        update(id, mapOf(DRAFT_FIELD to draft.toMap()), flushSoon = false)
+        return DraftResult(saved = flushNow(), draft = draft)
+    }
+
+    /** 초안을 지운다. 메모는 그대로다. 계정에 썼으면 true (못 썼으면 기기에 보관했다가 보낸다) */
+    suspend fun deleteDraft(id: String): Boolean {
+        if (!signedIn()) return false
+        update(id, mapOf(DRAFT_FIELD to null), flushSoon = false)
+        return flushNow()
+    }
+
+    /** 예전 앱이 이 기기에 저절로 보관하던 쓰던 메모. 옮긴 결과: moved는 초안으로 옮긴 질문, done은 보관본을 지워도 되는 질문 */
+    data class OldDraft(val id: String, val text: String, val at: Long)
+    data class OldDraftsMoved(val moved: List<String>, val done: List<String>)
+
+    /**
+     * 예전에는 쓰던 메모를 질문 화면(WebView)의 저장소에 저절로 보관했다. 남아 있던 것을 초안으로 옮긴다 (웹 moveOldDrafts).
+     * 이미 초안이 있거나 저장된 메모와 같은 글이면 옮기지 않고 지워도 된다고 알린다. 계정에 저장할 수 없는 글(MEMO_MAX자 초과)은
+     * 옮기지도 지우지도 않는다. 기록을 아직 읽지 않았으면 아무것도 하지 않는다 (다음에 다시 부른다).
+     */
+    suspend fun moveOldDrafts(old: List<OldDraft>): OldDraftsMoved {
+        if (!signedIn() || !_state.value.loaded) return OldDraftsMoved(emptyList(), emptyList())
+        val moved = mutableListOf<String>()
+        val done = mutableListOf<String>()
+        for ((id, raw, at) in old) {
+            val text = normalizeMemo(raw)
+            val item = _state.value.item(id)
+            val memo = item.memo.orEmpty()
+            if (!QUESTION_ID.matches(id) || text.isEmpty() || text == memo || item.draft != null || id in moved) {
+                done += id
+                continue
+            }
+            val draft = Draft(text, at.takeIf { it > 0 } ?: System.currentTimeMillis(), memo)
+            if (!draft.storable()) continue
+            update(id, mapOf(DRAFT_FIELD to draft.toMap()), flushSoon = false)
+            moved += id
+            done += id
+        }
+        if (moved.isNotEmpty()) flushNow()
+        return OldDraftsMoved(moved, done)
     }
 
     /**
@@ -465,6 +611,7 @@ object Records {
             memo = (f["memo"] as? String)?.takeIf { memo -> memo.isNotEmpty() },
             memoAt = (f["memoAt"] as? Number)?.toLong(),
             memoUncommitted = f["memoUncommitted"] == true,
+            draft = Draft.from(f[DRAFT_FIELD]),
         )
     }.filterValues { item -> item != Item() }
 
@@ -531,22 +678,33 @@ object Records {
         }
     }
 
-    private fun Map<String, Map<String, Any?>>.toJson(): JSONObject {
+    /** 기록을 기기에 둘 JSON으로 바꾼다. 필드 값이 지도(초안)면 JSON 객체로 넣는다 */
+    internal fun Map<String, Map<String, Any?>>.toJson(): JSONObject {
         val o = JSONObject()
         for ((id, fields) in this) {
             val f = JSONObject()
-            for ((k, v) in fields) f.put(k, v ?: JSONObject.NULL)
+            for ((k, v) in fields) {
+                f.put(k, if (v is Map<*, *>) JSONObject(v.entries.associate { (key, value) -> key.toString() to value }) else v ?: JSONObject.NULL)
+            }
             o.put(id, f)
         }
         return o
     }
 
-    private fun JSONObject?.toFieldMap(): Map<String, Map<String, Any?>> {
+    internal fun JSONObject?.toFieldMap(): Map<String, Map<String, Any?>> {
         if (this == null) return emptyMap()
         return keys().asSequence().associateWith { id ->
             val f = getJSONObject(id)
-            f.keys().asSequence().associateWith { k -> f.get(k).takeIf { it != JSONObject.NULL } }
+            f.keys().asSequence().associateWith { k -> f.get(k).fromJson() }
         }
+    }
+
+    /** JSON에서 읽은 필드 값: JSON 객체(초안)는 지도로, 정수는 Long으로 (Firestore에서 읽은 값과 같은 모양) */
+    private fun Any?.fromJson(): Any? = when (this) {
+        JSONObject.NULL, null -> null
+        is JSONObject -> keys().asSequence().associateWith { get(it).fromJson() }
+        is Int -> toLong()
+        else -> this
     }
 
     private suspend fun <T> io(block: () -> T): T = withContext(Dispatchers.IO) { block() }

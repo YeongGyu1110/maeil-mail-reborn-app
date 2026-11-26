@@ -2,6 +2,8 @@ package com.maeilmail.app.account
 
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** 기록 변경을 Firestore 쓰기로 나누는 규칙 (웹 memo-core.js의 write와 같아야 한다) */
@@ -51,6 +53,41 @@ class RecordsWriteTest {
         val writes = Records.writesFor("u1", mapOf("fe-5" to mapOf("memo" to "새 글", "memoAt" to 2L)))
         assertEquals(listOf("items.`fe-5`.memo", "items.`fe-5`.memoAt"), writes[0].mask)
         assertEquals(listOf("`fe-5`.memo", "`fe-5`.memoAt"), writes[1].mask)
+    }
+
+    @Test
+    fun `초안은 질문마다 초안 문서를 통째로 바꾸고 기본 문서와 묶음은 건드리지 않는다`() {
+        val draft = Records.Draft("쓰던 글", 3L, "메모")
+        val writes = Records.writesFor("u1", mapOf("fe-3" to mapOf(Records.DRAFT_FIELD to draft.toMap())))
+        assertEquals(listOf("users/u1", "users/u1/drafts/fe-3"), writes.map { it.path })
+        assertTrue(writes[0].isEmpty)
+        assertTrue(writes[1].whole)
+        assertEquals(mapOf("text" to "쓰던 글", "at" to 3L, "base" to "메모"), writes[1].fields)
+    }
+
+    @Test
+    fun `초안을 지우면 초안 문서를 지우고, 메모와 함께 저장하면 한 번에 보낸다`() {
+        val writes = Records.writesFor(
+            "u1",
+            mapOf("fe-6" to mapOf("memo" to "새 글", "memoAt" to 4L, "memoUncommitted" to null, Records.DRAFT_FIELD to null)),
+        )
+        assertEquals(listOf("users/u1", "users/u1/memos/2", "users/u1/drafts/fe-6"), writes.map { it.path })
+        assertEquals(listOf("`fe-6`.memo", "`fe-6`.memoAt", "`fe-6`.memoUncommitted"), writes[1].mask)
+        assertTrue(writes[2].remove)
+    }
+
+    @Test
+    fun `초안은 규칙과 같이 글과 기준 글이 3,000자까지일 때만 저장한다`() {
+        assertTrue(Records.Draft("가".repeat(3000), 1L, "나".repeat(3000)).storable())
+        assertFalse(Records.Draft("가".repeat(3001), 1L, "").storable())
+        assertFalse(Records.Draft("글", 1L, "나".repeat(3001)).storable())
+    }
+
+    @Test
+    fun `읽은 초안의 모양이 다르면 없는 것으로 본다`() {
+        assertEquals(Records.Draft("글", 5L, ""), Records.Draft.from(mapOf("text" to "글", "at" to 5L)))
+        assertEquals(null, Records.Draft.from(mapOf("at" to 5L)))
+        assertEquals(null, Records.Draft.from("글"))
     }
 
     @Test
