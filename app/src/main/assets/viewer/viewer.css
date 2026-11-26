@@ -419,7 +419,7 @@ html.is-writing, html.is-writing body { overflow: hidden; }
   cursor: default;
 }
 
-.win-tail > * { margin: 0; padding: 0; }
+#memo-window .win-tail > * { margin: 0; padding: 0; } /* 편집기의 꼬리 여백(memo.css)을 지운다 */
 .win-tail > :empty { display: none; }
 .win-tail > :not(:empty) ~ :not(:empty)::before { content: "·"; margin-right: 8px; }
 /* 자판 단축키 안내는 휴대폰에서 쓸 일이 드물어, 경고(비운 채 저장하면 지워요)만 보인다 */
