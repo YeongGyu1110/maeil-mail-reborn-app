@@ -50,12 +50,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -399,6 +401,8 @@ val DialogPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 24.dp, botto
 /**
  * 확인 창 (웹 .confirm-dialog): 모서리 4dp, 제목·설명, 오른쪽 아래에 글자 버튼(취소)과 면 버튼(확인).
  * danger면 확인 버튼을 빨간 면으로 둔다 (웹 .btn-danger).
+ * alt를 주면 세 번째 버튼(예: 변경 버리기)을 왼쪽 끝에 빨간 글자로 둔다. 셋이 한 줄에 들어가지 않으면(글자를 키웠을 때)
+ * 왼쪽부터의 순서 그대로 위에서 아래로 쌓는다 (웹 확인 창과 같다).
  */
 @Composable
 fun ConfirmDialog(
@@ -409,6 +413,8 @@ fun ConfirmDialog(
     onDismiss: () -> Unit,
     dismiss: String = "취소",
     danger: Boolean = false,
+    alt: String? = null,
+    onAlt: () -> Unit = {},
 ) {
     val colors = AppTheme.colors
     Dialog(onDismissRequest = onDismiss) {
@@ -421,12 +427,51 @@ fun ConfirmDialog(
             Text(title, style = TextStyles.dialogTitle, color = colors.textMain)
             Spacer(Modifier.height(8.dp))
             Text(body, style = TextStyles.body.copy(fontSize = 14.sp, lineHeight = 22.sp), color = colors.textSub)
-            Row(
-                Modifier.fillMaxWidth().padding(top = 13.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
-            ) {
+            DialogButtons(Modifier.padding(top = 13.dp), leading = alt != null) {
+                if (alt != null) Btn(alt, onClick = onAlt, contentColor = colors.danger)
                 Btn(dismiss, onClick = onDismiss)
                 Btn(confirm, onClick = onConfirm, kind = if (danger) BtnKind.Danger else BtnKind.Primary)
+            }
+        }
+    }
+}
+
+/**
+ * 확인 창의 버튼 줄. 한 줄에 들어가면 오른쪽 끝에 모으고, leading이면 첫 버튼만 왼쪽 끝에 둔다
+ * (글자 버튼의 글자가 창의 글과 같은 세로줄에 오도록 버튼 안쪽 여백만큼 왼쪽으로 당긴다).
+ * 한 줄에 들어가지 않으면 창의 폭으로 늘려 차례로 쌓는다.
+ */
+@Composable
+private fun DialogButtons(modifier: Modifier, leading: Boolean, content: @Composable () -> Unit) {
+    Layout(content, modifier.fillMaxWidth()) { measurables, constraints ->
+        val gap = 4.dp.roundToPx()
+        val width = constraints.maxWidth
+        val fits = measurables.sumOf { it.maxIntrinsicWidth(Constraints.Infinity) } + gap * (measurables.size - 1) <= width
+        if (fits) {
+            val placeables = measurables.map { it.measure(Constraints(maxWidth = width)) }
+            val height = placeables.maxOf { it.height }
+            layout(width, height) {
+                var x = width
+                for (i in placeables.indices.reversed()) {
+                    val p = placeables[i]
+                    val y = (height - p.height) / 2
+                    if (i == 0 && leading) {
+                        p.place(-BtnPadding.roundToPx(), y)
+                    } else {
+                        x -= p.width
+                        p.place(x, y)
+                        x -= gap
+                    }
+                }
+            }
+        } else {
+            val placeables = measurables.map { it.measure(Constraints.fixedWidth(width)) }
+            layout(width, placeables.sumOf { it.height }) {
+                var y = 0
+                for (p in placeables) {
+                    p.place(0, y)
+                    y += p.height
+                }
             }
         }
     }
