@@ -25,15 +25,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.maeilmail.app.account.Records
 import com.maeilmail.app.data.Question
 import com.maeilmail.app.ui.theme.AppTheme
 import org.json.JSONObject
 
-/** 본문 끝 메모 칸에 넘길 이 질문의 기록 */
+/** 본문 끝 학습 기록 칸(이해도 · 내 메모)에 넘길 이 질문의 기록 */
 data class StudyState(val item: Records.Item, val canCommit: Boolean, val repo: String?) {
     fun toJson(): JSONObject = JSONObject()
+        .put("level", item.level.key ?: "new")
         .put("memo", item.memo ?: "")
         .put("memoAt", item.memoAt ?: JSONObject.NULL)
         .put("uncommitted", item.memoUncommitted)
@@ -81,6 +84,8 @@ fun MarkdownView(
     next: Question? = null,
     /** 이 질문의 학습 기록. null이면 학습 기록 칸을 감춘다 (로그인하지 않음) */
     study: StudyState? = null,
+    /** 본문이 화면 아래 끝(손잡이 뒤)까지 닿을 때, 본문의 끝을 그만큼 더 띄운다 */
+    bottomInset: Dp = 0.dp,
     controller: ViewerController = remember { ViewerController() },
     onRequest: (name: String, payload: JSONObject, reply: (JSONObject) -> Unit) -> Unit = { _, _, _ -> },
 ) {
@@ -162,6 +167,12 @@ fun MarkdownView(
     LaunchedEffect(pageReady, key, study) {
         if (!pageReady) return@LaunchedEffect
         webView.evaluateJavascript("setStudy(${study?.toJson() ?: "null"})", null)
+    }
+
+    // WebView의 CSS 픽셀은 dp와 같다
+    LaunchedEffect(pageReady, bottomInset) {
+        if (!pageReady) return@LaunchedEffect
+        webView.evaluateJavascript("setInsets({ bottom: ${bottomInset.value} })", null)
     }
 
     LaunchedEffect(pageReady, colors.isDark) {

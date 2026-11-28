@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -27,7 +26,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import com.maeilmail.app.OpenRequest
 import com.maeilmail.app.account.Records
 import com.maeilmail.app.data.Library
@@ -179,8 +177,7 @@ fun App(openRequest: OpenRequest?, onOpenHandled: () -> Unit) {
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .imePadding()
-                .padding(bottom = if (route == Route.Question) 64.dp else 0.dp),
+                .imePadding(),
         ) { Toast(it.visuals.message) }
     }
 }

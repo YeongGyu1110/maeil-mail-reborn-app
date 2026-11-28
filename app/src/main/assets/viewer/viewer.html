@@ -25,9 +25,10 @@
   <header class="doc-header">
     <div id="meta" class="doc-meta"></div>
     <h1 id="title"></h1>
-    <!-- 메모가 있을 때만 보인다. 누르면 메모로 내려간다 (웹 .doc-status). 이해도는 앱의 아래 막대에 있다 -->
+    <!-- 지금 이해도와 메모가 있는지 (웹 .doc-status). 기록한 것이 있을 때만 보이고, 누르면 학습 기록으로 내려간다 -->
     <div id="doc-status" class="doc-status" hidden>
-      <a id="status-memo" class="status-memo" href="#memo">
+      <a id="status-level" class="level-badge" href="#study" hidden></a>
+      <a id="status-memo" class="status-memo" href="#memo" hidden>
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M12 20h9"></path>
           <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
@@ -37,25 +38,41 @@
     </div>
   </header>
   <main id="content"></main>
-  <!-- 내 메모: 보기·편집기는 웹과 같은 memo-ui.js가 그리고, 저장·GitHub 커밋은 앱이 한다. 로그인했을 때만 보인다.
+  <!-- 학습 기록 (웹 .study): 답을 읽은 뒤 이해도를 고르고, 내 메모를 본다. 로그인했을 때만 보인다.
+       메모 보기·편집기는 웹과 같은 memo-ui.js가 그리고, 저장·GitHub 커밋은 앱이 한다.
        여기서는 메모를 보기만 하고, 고치는 것은 메모 창(#memo-window)에서 한다 -->
-  <section id="memo" class="study" hidden>
-    <div class="study-block-head">
-      <h2 class="study-title">내 메모</h2>
-      <button type="button" id="memo-edit" class="btn btn-sm btn-soft" hidden>
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M12 20h9"></path>
-          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
-        </svg>
-        편집
-      </button>
+  <section id="study" class="study" aria-labelledby="study-heading" hidden>
+    <div class="study-head">
+      <h2 id="study-heading" class="study-title">학습 기록</h2>
     </div>
-    <div id="memo-body"></div>
-    <!-- 메모 저장소를 아직 고르지 않았을 때만 보인다 -->
-    <p id="memo-repo" class="memo-repo" hidden>
-      <span>저장소를 고르면 메모가 GitHub에도 커밋돼요</span>
-      <button type="button" id="memo-repo-pick" class="link-btn">저장소 고르기</button>
-    </p>
+    <div class="study-block">
+      <div class="study-block-head">
+        <h3 id="level-heading" class="study-block-title">이해도</h3>
+      </div>
+      <div id="level-control" class="level-control" role="radiogroup" aria-labelledby="level-heading">
+        <button type="button" class="level-option" role="radio" data-level="new" aria-checked="true"><span class="dot"></span>미학습</button>
+        <button type="button" class="level-option" role="radio" data-level="review" aria-checked="false" tabindex="-1"><span class="dot dot-review"></span>복습 필요</button>
+        <button type="button" class="level-option" role="radio" data-level="done" aria-checked="false" tabindex="-1"><span class="dot dot-done"></span>완벽 이해</button>
+      </div>
+    </div>
+    <div id="memo" class="study-block">
+      <div class="study-block-head">
+        <h3 class="study-block-title">내 메모</h3>
+        <button type="button" id="memo-edit" class="btn btn-sm btn-soft" hidden>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 20h9"></path>
+            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+          </svg>
+          편집
+        </button>
+      </div>
+      <div id="memo-body"></div>
+      <!-- 메모 저장소를 아직 고르지 않았을 때만 보인다 -->
+      <p id="memo-repo" class="memo-repo" hidden>
+        <span>저장소를 고르면 메모가 GitHub에도 커밋돼요</span>
+        <button type="button" id="memo-repo-pick" class="link-btn">저장소 고르기</button>
+      </p>
+    </div>
   </section>
   <!-- 이전·다음 질문 (웹 .page-nav-card). 앱이 보던 목록의 순서로 넘긴다 -->
   <nav id="near" class="near" aria-label="이전·다음 질문">

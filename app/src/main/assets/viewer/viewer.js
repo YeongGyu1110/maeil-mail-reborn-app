@@ -1,6 +1,6 @@
 // 앱(MarkdownView.kt)이 render()로 질문을 넘겨 그린다.
 // 본문은 웹 질문 화면과 같은 방식(marked 기본값 + Prism)으로 그린다.
-// 본문 끝의 내 메모는 웹 questions/index.html의 화면 코드를 옮겼다. 이해도는 앱의 아래 막대가 맡는다.
+// 본문 끝의 학습 기록(이해도 → 내 메모)은 웹 questions/index.html의 화면 코드를 옮겼다. 이해도의 저장은 앱이 한다.
 // 메모는 본문에서 고치지 않고 메모 창에서 고친다: 본문 위에 겹쳐 여는 한 화면으로, Gmail의 답장 창처럼 질문 화면의 막대를 가린다.
 // 메모 보기·편집기·겹친 곳 고르기는 웹과 같은 memo-ui.js가 그리고, 저장·GitHub 커밋·확인 창·알림은 앱이 한다 (call()로 부탁한다).
 (function () {
@@ -101,10 +101,18 @@
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
   };
 
-  // ---------- 내 메모 ----------
+  // 본문이 화면 아래 끝(시스템 손잡이 뒤)까지 닿으므로, 본문의 끝을 그만큼 더 띄운다 (앱이 dp로 알려 준다)
+  window.setInsets = function ({ bottom = 0 } = {}) {
+    document.documentElement.style.setProperty('--inset-bottom', `${bottom}px`);
+  };
+
+  // ---------- 학습 기록: 이해도 · 내 메모 ----------
+  const studySection = document.getElementById('study');
   const memoSection = document.getElementById('memo');
   const docStatus = document.getElementById('doc-status');
+  const statusLevel = document.getElementById('status-level');
   const statusMemo = document.getElementById('status-memo');
+  const levelOptions = [...document.querySelectorAll('#level-control .level-option')];
   const memoRepo = document.getElementById('memo-repo');
   const memoBody = document.getElementById('memo-body');
   const memoEdit = document.getElementById('memo-edit');
@@ -112,27 +120,69 @@
 
   let question = { id: '', title: '' };
   // 이 질문의 학습 기록 (앱이 setStudy로 넘긴다). null이면 로그인하지 않음
-  // { memo, memoAt, uncommitted, canCommit, repo, draft: { text, at, base } | null }
+  // { level: 'new' | 'review' | 'done', memo, memoAt, uncommitted, canCommit, repo, draft: { text, at, base } | null }
   let study = null;
   const memoText = () => study?.memo || '';
   const draftOf = () => study?.draft || null;
+  const levelOf = () => study?.level || 'new';
   // 이 글을 메모로 저장하면 GitHub에 커밋하는지 (앱의 Records.saveMemo와 같은 조건)
   const willCommit = (text) => Boolean(study?.canCommit) && Boolean(text) && (text !== memoText() || Boolean(study?.uncommitted));
+  const LEVEL_LABELS = { new: '미학습', review: '복습 필요', done: '완벽 이해' };
 
-  // 제목 아래: 메모나 초안이 있는지
+  // 제목 아래: 지금 이해도와 메모(초안)가 있는지. 처음 여는 질문은 거의 다 미학습이라 그때는 수준을 보이지 않는다 (웹과 같다)
   function renderStatus() {
-    docStatus.hidden = !memoText() && !draftOf();
+    const level = levelOf();
+    statusLevel.dataset.level = level;
+    statusLevel.textContent = LEVEL_LABELS[level];
+    statusLevel.hidden = level === 'new';
+    statusMemo.hidden = !memoText() && !draftOf();
+    docStatus.hidden = !study || (statusLevel.hidden && statusMemo.hidden);
   }
+
+  function renderLevel() {
+    const level = levelOf();
+    for (const option of levelOptions) {
+      const checked = option.dataset.level === level;
+      option.setAttribute('aria-checked', String(checked));
+      option.tabIndex = checked ? 0 : -1;
+    }
+  }
+
+  // 고르면 바로 바꿔 그리고 저장은 앱에 맡긴다 (앱이 바뀐 기록을 setStudy로 다시 넘긴다)
+  function setLevel(level) {
+    if (!study || levelOf() === level) return;
+    study = { ...study, level };
+    renderLevel();
+    renderStatus();
+    tell('setLevel', { id: question.id, level });
+  }
+
+  document.getElementById('level-control').addEventListener('click', (e) => {
+    const option = e.target.closest('.level-option');
+    if (option) setLevel(option.dataset.level);
+  });
+
+  // 라디오 묶음처럼 화살표로 옮겨 고른다 (웹과 같다)
+  document.getElementById('level-control').addEventListener('keydown', (e) => {
+    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+    if (!step) return;
+    e.preventDefault();
+    const index = levelOptions.findIndex((option) => option.dataset.level === levelOf());
+    const next = levelOptions[(index + step + levelOptions.length) % levelOptions.length];
+    setLevel(next.dataset.level);
+    next.focus();
+  });
 
   window.setStudy = function (state) {
     study = state;
-    memoSection.hidden = !state;
+    studySection.hidden = !state;
     memoRepo.hidden = !state || state.canCommit;
     renderStatus();
     if (!state) {
       resetMemo();
       return;
     }
+    renderLevel();
     if (!editor) renderMemo();
     else adoptRecords();
     moveOldDrafts();
@@ -163,6 +213,11 @@
     if (result?.study && id === question.id) study = result.study;
     return result || {};
   }
+
+  statusLevel.addEventListener('click', (e) => {
+    e.preventDefault();
+    studySection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
 
   statusMemo.addEventListener('click', (e) => {
     e.preventDefault();

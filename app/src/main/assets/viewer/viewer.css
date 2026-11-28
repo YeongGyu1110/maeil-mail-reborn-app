@@ -120,8 +120,8 @@ html, body {
 }
 
 body {
-  /* 웹 좁은 화면의 문서 지면 여백 (.doc-container padding 28px 20px) */
-  padding: 28px 20px 32px;
+  /* 웹 좁은 화면의 문서 지면 여백 (.doc-container padding 28px 20px). 아래는 시스템 손잡이 자리(--inset-bottom)만큼 더 띄운다 */
+  padding: 28px 20px calc(32px + var(--inset-bottom, 0px));
   font-family: "Pretendard", system-ui, sans-serif;
   line-height: 1.6;
   letter-spacing: -0.015em;
@@ -218,7 +218,8 @@ h1#title {
   letter-spacing: inherit;
 }
 
-/* 문서 머리의 메모 표시 (웹 .doc-status) */
+/* 문서 머리의 학습 상태 (웹 .doc-status): 기록한 것이 있을 때만 보인다 (미학습이면 질문 목록처럼 표시하지 않는다).
+   학습 수준은 색이 뜻이라 색칠한 표시로, 메모는 면 없는 글자 링크로 둔다 */
 .doc-status {
   display: flex;
   flex-wrap: wrap;
@@ -226,6 +227,47 @@ h1#title {
   gap: 6px 12px;
   margin-top: 16px;
 }
+
+/* 학습 수준: 점 + 이름 (웹 base.css .dot, .level-badge) */
+.dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 1px;
+  flex-shrink: 0;
+  background: var(--rule-strong);
+}
+
+.dot-review { background: var(--review-bar); }
+.dot-done { background: var(--primary); }
+
+.level-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: var(--radius);
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.level-badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 1px;
+  background: var(--rule-strong);
+}
+
+.level-badge[data-level="review"] { background: var(--review-light); color: var(--review); }
+.level-badge[data-level="review"]::before { background: var(--review-bar); }
+.level-badge[data-level="done"] { background: var(--primary-light); color: var(--primary); }
+.level-badge[data-level="done"]::before { background: var(--primary); }
 
 /* 제목 아래의 '내 메모' 표시: 면 없는 글자 링크 (웹 .status-memo) */
 .status-memo {
@@ -242,12 +284,14 @@ h1#title {
 
 .status-memo svg { color: var(--primary); }
 
-/* ---------- 내 메모: 본문 뒤에 진한 선으로 나눈 문서의 마지막 절 (웹 .study) ---------- */
+/* ---------- 학습 기록: 본문 뒤에 진한 선으로 나눈 문서의 마지막 절. 이해도 → 내 메모 순서로 둔다 (웹 .study) ---------- */
 .study {
   margin-top: 48px;
   padding-top: 28px;
   border-top: 1px solid var(--rule-strong);
 }
+
+.study-head { margin-bottom: 24px; }
 
 .study-title {
   margin: 0;
@@ -257,6 +301,8 @@ h1#title {
   color: var(--text-main);
 }
 
+.study-block + .study-block { margin-top: 32px; }
+
 .study-block-head {
   display: flex;
   align-items: center;
@@ -265,6 +311,59 @@ h1#title {
   min-height: 34px;
   margin-bottom: 10px;
 }
+
+.study-block-title {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+/* 이해도: 셋 중 하나를 고르는 분할 버튼 (웹 .level-control, 좁은 화면). 고른 칸만 종이처럼 떠오르고 수준의 색을 띤다.
+   보이는 높이는 웹과 같고(36px), 손가락으로 누르는 자리만 위아래로 넓힌다 */
+.level-control {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  width: 100%;
+  padding: 3px;
+  border-radius: 6px;
+  background: var(--bg-subtle);
+  box-shadow: inset 0 0 0 1px var(--rule);
+}
+
+.level-option {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: inherit;
+  white-space: nowrap;
+  transition: background-color 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.level-option::after { content: ""; position: absolute; inset: -6px 0; }
+.level-option:not([aria-checked="true"]) .dot { opacity: 0.55; }
+
+.level-option[aria-checked="true"] {
+  background: var(--bg-paper);
+  color: var(--text-main);
+  box-shadow: 0 1px 2px rgba(20, 23, 26, 0.1), 0 0 0 1px var(--rule);
+}
+
+.level-option[data-level="review"][aria-checked="true"] { color: var(--review); }
+.level-option[data-level="done"][aria-checked="true"] { color: var(--primary); }
+.level-option:focus-visible { outline-offset: -2px; }
 
 /* 메모 저장소를 고르지 않았을 때의 안내 */
 .memo-repo {
