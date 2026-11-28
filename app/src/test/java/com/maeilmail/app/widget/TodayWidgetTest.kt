@@ -1,38 +1,25 @@
 package com.maeilmail.app.widget
 
-import com.maeilmail.app.data.Progress
+import com.maeilmail.app.reminder.Today
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 import java.time.LocalDate
-import java.time.LocalDateTime
 import java.time.LocalTime
 
-/** 위젯 문구: 오늘 탭과 같은 규칙 (알림 시각 전에는 질문을 보여주지 않는다) */
+/** 위젯 문구: 첫 화면과 같은 규칙 */
 class TodayWidgetTest {
     private val seven = LocalTime.of(7, 0)
     private val monday = LocalDate.of(2026, 11, 23)
-    private val progress = Progress(
-        sent = listOf("fe-1"),
-        today = Progress.Sent("2026-11-20", "fe-1"),
-        next = mapOf("2026-11-23" to "be-100", "2026-11-24" to "fe-118"),
-        hasNext = true,
-    )
     private val titles = mapOf("be-100" to ("트랜잭션이란?" to "데이터베이스 기초"))
+    private val rest = Today.Idle("오늘은 쉬는 날이에요", "다음 질문은 11월 23일 (월) 07:00에 열려요", rest = true)
 
-    private fun content(now: LocalDateTime, lastNotified: LocalDate? = null) =
-        TodayWidget.content(progress, now, seven, lastNotified) { titles[it] }
-
-    @Test
-    fun `알림 시각 전에는 질문을 보여주지 않는다`() {
-        val c = content(monday.atTime(6, 59))
-        assertEquals("오늘의 질문은 07:00에 알려 드려요", c.title)
-        assertNull(c.questionId)
-    }
+    private fun content(today: Today, opened: String? = null) = TodayWidget.content(today, monday, opened) { titles[it] }
 
     @Test
-    fun `알림 시각이 지나면 번호와 제목을 보이고 누르면 그 질문을 연다`() {
-        val c = content(monday.atTime(7, 0))
+    fun `오늘 질문이면 번호와 제목과 분류`() {
+        val c = content(Today("be-100", "오늘의 질문", true, null))
+        assertEquals("오늘의 질문", c.label)
         assertEquals("BE-100", c.meta)
         assertEquals("트랜잭션이란?", c.title)
         assertEquals("데이터베이스 기초", c.sub)
@@ -40,15 +27,36 @@ class TodayWidgetTest {
     }
 
     @Test
-    fun `이미 알렸으면 알림 시각 전이라도 보인다`() {
-        assertEquals("be-100", content(monday.atTime(6, 0), lastNotified = monday).questionId)
+    fun `열어 본 오늘 질문도 그대로 보인다`() {
+        assertEquals("be-100", content(Today("be-100", "오늘의 질문", true, null), opened = "be-100").questionId)
     }
 
     @Test
-    fun `쉬는 날이면 다음 질문 날짜를 보인다`() {
-        val c = content(LocalDate.of(2026, 11, 22).atTime(12, 0))
+    fun `알림 시각 전에는 여는 시각만 보인다`() {
+        val c = content(Today("be-100", "금요일에 받은 질문", false, Today.Idle("오늘의 질문은 07:00에 열려요")))
+        assertEquals("오늘의 질문은 07:00에 열려요", c.title)
+        assertEquals("11월 23일 (월)", c.meta)
+        assertNull(c.questionId)
+    }
+
+    @Test
+    fun `쉬는 날에는 아직 열지 않은 지난 질문`() {
+        val c = content(Today("be-100", "금요일에 받은 질문", false, rest))
+        assertEquals("금요일에 받은 질문", c.label)
+        assertEquals("트랜잭션이란?", c.title)
+        assertEquals("다음 질문은 11월 23일 (월) 07:00에 열려요", c.sub)
+    }
+
+    @Test
+    fun `쉬는 날 지난 질문을 이미 열었으면 다음 날짜`() {
+        val c = content(Today("be-100", "금요일에 받은 질문", false, rest), opened = "be-100")
         assertEquals("오늘은 쉬는 날이에요", c.title)
-        assertEquals("다음 질문 11월 23일 (월) 07:00", c.sub)
+        assertNull(c.questionId)
+    }
+
+    @Test
+    fun `목차에 없는 질문이면 앱을 열라고 한다`() {
+        assertEquals("앱을 열면 질문을 받아 와요", content(Today("fe-999", "오늘의 질문", true, null)).title)
     }
 
     @Test

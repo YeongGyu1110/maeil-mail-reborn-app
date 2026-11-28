@@ -25,7 +25,4 @@ object ThemeSwitch {
             )
         }
     }
-
-    /** 지금 보이는 것과 반대로 바꾼다 (상단 바의 해·달 버튼, 웹의 테마 전환 버튼과 같다) */
-    fun toggle(context: Context, dark: Boolean) = set(context, if (dark) Settings.Theme.LIGHT else Settings.Theme.DARK)
 }

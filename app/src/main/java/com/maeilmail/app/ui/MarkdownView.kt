@@ -27,13 +27,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.viewinterop.AndroidView
 import com.maeilmail.app.account.Records
+import com.maeilmail.app.data.Question
 import com.maeilmail.app.ui.theme.AppTheme
 import org.json.JSONObject
 
-/** 본문 끝 학습 기록 칸에 넘길 이 질문의 기록 */
+/** 본문 끝 메모 칸에 넘길 이 질문의 기록 */
 data class StudyState(val item: Records.Item, val canCommit: Boolean, val repo: String?) {
     fun toJson(): JSONObject = JSONObject()
-        .put("level", item.level.key ?: "new")
         .put("memo", item.memo ?: "")
         .put("memoAt", item.memoAt ?: JSONObject.NULL)
         .put("uncommitted", item.memoUncommitted)
@@ -54,7 +54,7 @@ class ViewerController {
 /**
  * 마크다운 본문을 웹 서비스와 같은 방식(marked + Prism)으로 그린다. assets/viewer/viewer.html 참고.
  * 한 화면에서 질문을 넘길 때는 WebView를 새로 만들지 않고 render()로 내용만 바꾼다.
- * 본문 끝의 학습 기록(이해도·내 메모)도 이 안에서 그린다. 메모 편집기는 웹과 같은 memo-ui.js다.
+ * 본문 끝의 내 메모와 이전·다음 질문도 이 안에서 그린다. 메모 편집기는 웹과 같은 memo-ui.js다.
  *
  * onRequest: 본문 스크립트가 앱에 부탁하는 일 (확인 창, 메모 저장 등). reply로 답하면 스크립트가 이어서 한다.
  */
@@ -67,18 +67,18 @@ fun MarkdownView(
     title: String,
     markdown: String,
     modifier: Modifier = Modifier,
+    /** 본문 끝에 제목을 보일 이전·다음 질문 */
+    prev: Question? = null,
+    next: Question? = null,
     /** 이 질문의 학습 기록. null이면 학습 기록 칸을 감춘다 (로그인하지 않음) */
     study: StudyState? = null,
     controller: ViewerController = remember { ViewerController() },
-    /** 본문 끝의 이해도 버튼을 눌렀을 때 */
-    onLevel: (Records.Level) -> Unit = {},
     onRequest: (name: String, payload: JSONObject, reply: (JSONObject) -> Unit) -> Unit = { _, _, _ -> },
 ) {
     val context = LocalContext.current
     val colors = AppTheme.colors
     val fontScale = LocalDensity.current.fontScale
     var pageReady by remember { mutableStateOf(false) }
-    val currentOnLevel by rememberUpdatedState(onLevel)
     val currentOnRequest by rememberUpdatedState(onRequest)
 
     val webView = remember {
@@ -96,7 +96,6 @@ fun MarkdownView(
             addJavascriptInterface(
                 Bridge(
                     context,
-                    onLevel = { key -> currentOnLevel(Records.Level.of(key)) },
                     onRequest = { name, id, payload ->
                         currentOnRequest(name, payload) { result ->
                             if (id != 0) view.evaluateJavascript("__reply($id, $result)", null)
@@ -135,7 +134,7 @@ fun MarkdownView(
         }
     }
 
-    LaunchedEffect(pageReady, key, markdown) {
+    LaunchedEffect(pageReady, key, markdown, prev?.id, next?.id) {
         if (!pageReady) return@LaunchedEffect
         val payload = JSONObject()
             .put("id", key)
@@ -143,6 +142,8 @@ fun MarkdownView(
             .put("title", title)
             .put("markdown", markdown)
             .put("dark", colors.isDark)
+            .put("prev", prev?.toJson() ?: JSONObject.NULL)
+            .put("next", next?.toJson() ?: JSONObject.NULL)
         webView.evaluateJavascript("render($payload)", null)
     }
 
@@ -161,19 +162,14 @@ fun MarkdownView(
     AndroidView(factory = { webView }, modifier = modifier)
 }
 
+private fun Question.toJson(): JSONObject = JSONObject().put("id", id).put("title", title)
+
 /** 본문 스크립트가 부르는 앱 기능. 스크립트는 WebView의 별도 스레드에서 부르므로 화면 스레드로 넘긴다 */
 private class Bridge(
     private val context: Context,
-    private val onLevel: (String?) -> Unit,
     private val onRequest: (name: String, id: Int, payload: JSONObject) -> Unit,
 ) {
     private val main = Handler(context.mainLooper)
-
-    /** 이해도 버튼: "new" | "review" | "done" */
-    @JavascriptInterface
-    fun setLevel(level: String) {
-        main.post { onLevel(level.takeIf { it != "new" }) }
-    }
 
     /** 앱에 부탁한다. id가 0이 아니면 앱이 __reply(id, 결과)로 답한다 */
     @JavascriptInterface

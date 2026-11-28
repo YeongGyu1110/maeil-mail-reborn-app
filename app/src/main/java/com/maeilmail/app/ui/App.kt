@@ -1,97 +1,113 @@
 package com.maeilmail.app.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.material3.Icon
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.Saver
-import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.maeilmail.app.OpenRequest
 import com.maeilmail.app.account.Records
 import com.maeilmail.app.data.Library
+import com.maeilmail.app.data.Settings
 import com.maeilmail.app.ui.theme.AppTheme
-import com.maeilmail.app.ui.theme.LineIcons
-import com.maeilmail.app.ui.theme.TextStyles
+import com.maeilmail.app.widget.TodayWidget
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
-private val ListFilterSaver: Saver<ListFilter, Any> = listSaver(
-    save = { listOf(it.query, it.category, it.level?.name.orEmpty(), it.starred.toString(), it.received.toString()) },
-    restore = {
-        ListFilter(
-            query = it[0],
-            category = it[1],
-            level = Records.Level.entries.firstOrNull { level -> level.name == it[2] },
-            starred = it[3] == "true",
-            received = it[4] == "true",
-        )
-    },
-)
-
-private enum class Tab(val label: String, val icon: ImageVector) {
-    Today("오늘", LineIcons.Calendar),
-    Questions("질문", LineIcons.List),
-    Settings("설정", LineIcons.Sliders),
-}
+/** 화면. 뒤에 있는 것이 위에 쌓이는 화면이다 */
+private enum class Route { Home, Search, Question, Settings }
 
 /**
- * 앱의 화면 전환: 아래 탭(오늘 · 질문 · 설정)과 그 위에 여는 질문 화면.
- * 화면을 돌려도 보던 탭·질문·검색어가 남는다.
+ * 앱의 화면 전환: 첫 화면(오늘의 질문과 목록) 위에 검색·질문·설정을 연다.
+ * 화면을 돌려도 보던 화면·질문·검색어가 남고, 검색 결과에서 연 질문은 뒤로 가면 그 결과로 돌아온다.
  *
- * openRequest: 알림을 눌러 열 질문 ID. 열고 나면 onOpenHandled로 지운다.
+ * openRequest: 알림·위젯·메일 링크로 열어 달라고 한 것. 열고 나면 onOpenHandled로 지운다.
  */
 @Composable
-fun App(openRequest: String?, onOpenHandled: () -> Unit) {
+fun App(openRequest: OpenRequest?, onOpenHandled: () -> Unit) {
     val colors = AppTheme.colors
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val settings = remember { Settings.get(context) }
     val state by Library.state.collectAsState()
-    val filter = rememberSaveable(saver = ListFilterSaver) { ListFilter() }
+    val today = rememberToday(state)
+    val filter = rememberSaveable(saver = ListFilter.Saver) { ListFilter() }
     val listState = rememberLazyListState()
-    var tab by rememberSaveable { mutableIntStateOf(Tab.Today.ordinal) }
-    var openId by rememberSaveable { mutableStateOf<String?>(null) }
+    var route by rememberSaveable { mutableStateOf(Route.Home) }
+    var questionId by rememberSaveable { mutableStateOf("") }
     var order by rememberSaveable { mutableStateOf(arrayListOf<String>()) }
-    // 질문 화면 경로에 보일, 질문을 연 곳 (질문 목록 / 오늘)
-    var origin by rememberSaveable { mutableStateOf(Tab.Questions.pageName) }
+    // 질문 화면의 뒤로 가기에 보일, 질문을 연 목록의 이름
+    var origin by rememberSaveable { mutableStateOf(ListFilter.DEFAULT_NAME) }
+    // 질문 화면에서 뒤로 가면 돌아갈 화면 (첫 화면 또는 검색)
+    var questionBack by rememberSaveable { mutableStateOf(Route.Home) }
+    var query by rememberSaveable { mutableStateOf("") }
+    val resultState = rememberLazyListState()
     val snackbar = remember { SnackbarHostState() }
 
-    /** 질문 목록 밖(오늘, 알림)에서 열면 이전·다음은 전체 목록 순서를 따른다 */
-    fun openInFullOrder(id: String) {
-        order = ArrayList(state.catalog.questions.map { it.id })
-        origin = Tab.Today.pageName
-        openId = id
+    fun openQuestion(id: String, ids: List<String>, from: String, back: Route = Route.Home) {
+        order = ArrayList(ids)
+        origin = from
+        questionId = id
+        questionBack = back
+        route = Route.Question
     }
 
+    /** 검색어를 바꾸면 결과를 맨 위부터 보인다 */
+    fun setQuery(value: String) {
+        if (value.trim() != query.trim()) scope.launch { resultState.scrollToItem(0) }
+        query = value
+    }
+
+    /** 앱 밖에서 열어 달라고 한 화면으로 간다. 질문 화면으로 바로 열면 이전·다음은 전체 목록 순서를 따른다 */
+    fun handle(request: OpenRequest) {
+        onOpenHandled()
+        val all = state.catalog.questions.map { it.id }
+        when (request) {
+            is OpenRequest.Question -> openQuestion(request.id, all, ListFilter.DEFAULT_NAME)
+            is OpenRequest.Home -> {
+                filter.show(request.filter)
+                scope.launch { listState.scrollToItem(0) }
+                // 지난 알림을 눌러 첫 화면에 그 질문이 없으면(더 앞의 질문이거나 이미 열어 본 지난 질문) 질문 화면을 바로 연다
+                val onHome = request.id == today.id && (today.isToday || request.id != settings.opened.value)
+                if (request.id != null && !onHome) openQuestion(request.id, all, ListFilter.DEFAULT_NAME) else route = Route.Home
+            }
+        }
+    }
+
+    // 질문 화면에서는 쓰던 메모를 버릴지 먼저 묻는다 (interrupt)
     LaunchedEffect(openRequest, state.loaded) {
-        if (openRequest != null && state.loaded) {
-            openInFullOrder(openRequest)
-            onOpenHandled()
+        if (openRequest != null && state.loaded && route != Route.Question) handle(openRequest)
+    }
+
+    // 받은 질문의 답변을 어느 길로든 열었으면 기억해 둔다 (첫 화면과 위젯에서 지난 질문으로 다시 보이지 않게)
+    LaunchedEffect(route, questionId, today.id) {
+        if (route == Route.Question && questionId == today.id && settings.opened.value != questionId) {
+            settings.setOpened(questionId)
+            withContext(Dispatchers.IO) { TodayWidget.refresh(context) }
         }
     }
 
@@ -110,106 +126,60 @@ fun App(openRequest: String?, onOpenHandled: () -> Unit) {
         snackbar.showSnackbar(message)
     }
 
-    val id = openId
-    if (id != null) {
-        Box(Modifier.fillMaxSize()) {
-            QuestionScreen(
-                state = state,
-                id = id,
-                origin = origin,
-                order = order,
-                onNavigate = { openId = it },
-                onBack = { openId = null },
-            )
-            SnackbarHost(
-                snackbar,
-                modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 64.dp),
-            ) { Toast(it.visuals.message) }
-        }
-        return
-    }
+    // 이해도·별표를 저장하지 못했을 때 (설정에도 남아 있다)
+    LaunchedEffect(records.error) { records.error?.let { snackbar.showSnackbar(it) } }
 
-    Column(Modifier.fillMaxSize().background(colors.bgCanvas)) {
-        Box(Modifier.weight(1f)) {
-            when (Tab.entries[tab]) {
-                Tab.Today -> HomeScreen(
+    Box(Modifier.fillMaxSize().background(colors.bgCanvas)) {
+        AnimatedContent(
+            targetState = route,
+            transitionSpec = {
+                val forward = targetState > initialState
+                (slideInHorizontally(tween(200)) { w -> if (forward) w / 12 else -w / 16 } + fadeIn(tween(200)))
+                    .togetherWith(fadeOut(tween(100)))
+            },
+            label = "route",
+        ) { shown ->
+            when (shown) {
+                Route.Home -> HomeScreen(
                     state = state,
-                    onOpen = { openInFullOrder(it.id) },
-                    onOpenSettings = { tab = Tab.Settings.ordinal },
-                )
-                Tab.Questions -> ListScreen(
-                    state = state,
+                    today = today,
                     filter = filter,
                     listState = listState,
-                    onOpen = { q, ids ->
-                        order = ArrayList(ids)
-                        origin = Tab.Questions.pageName
-                        openId = q.id
+                    onOpen = { q, ids, from -> openQuestion(q.id, ids, from) },
+                    onSearch = {
+                        query = ""
+                        route = Route.Search
                     },
+                    onSettings = { route = Route.Settings },
                 )
-                Tab.Settings -> SettingsScreen(state)
-            }
-            SnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter)) { Toast(it.visuals.message) }
-        }
-        TabBar(Tab.entries[tab], onSelect = { tab = it.ordinal })
-    }
-}
-
-/** 화면 이름 (상단 바 경로에 보인다) */
-private val Tab.pageName: String
-    get() = when (this) {
-        Tab.Today -> "오늘"
-        Tab.Questions -> "질문 목록"
-        Tab.Settings -> "설정"
-    }
-
-/**
- * 아래 탭: 캔버스 면에 선 아이콘과 이름. 알약 모양 표시 대신, 고른 탭 위쪽(지면과 맞닿은 곳)에 짧은 초록 선을 긋는다.
- */
-@Composable
-private fun TabBar(selected: Tab, onSelect: (Tab) -> Unit) {
-    val colors = AppTheme.colors
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .background(colors.bgCanvas)
-            .navigationBarsPadding()
-            .height(58.dp)
-            .selectableGroup(),
-    ) {
-        for (t in Tab.entries) {
-            val on = t == selected
-            Box(
-                Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .selectable(selected = on, role = Role.Tab, onClick = { onSelect(t) }),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (on) {
-                    Box(
-                        Modifier
-                            .align(Alignment.TopCenter)
-                            .width(28.dp)
-                            .height(2.dp)
-                            .background(colors.primary),
-                    )
-                }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        t.icon,
-                        contentDescription = null,
-                        tint = if (on) colors.primary else colors.textMuted,
-                        modifier = Modifier.size(20.dp),
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        t.label,
-                        style = TextStyles.num.copy(fontWeight = if (on) FontWeight.Bold else FontWeight.Medium),
-                        color = if (on) colors.textMain else colors.textMuted,
-                    )
-                }
+                Route.Search -> SearchScreen(
+                    state = state,
+                    query = query,
+                    onQuery = ::setQuery,
+                    listState = resultState,
+                    onOpen = { q, ids, from -> openQuestion(q.id, ids, from, back = Route.Search) },
+                    onBack = { route = Route.Home },
+                )
+                Route.Question -> QuestionScreen(
+                    state = state,
+                    id = questionId,
+                    origin = origin,
+                    order = order,
+                    onNavigate = { questionId = it },
+                    onBack = { route = questionBack },
+                    interrupt = if (openRequest != null && state.loaded) ({ handle(openRequest) }) else null,
+                    onStay = onOpenHandled,
+                )
+                Route.Settings -> SettingsScreen(state, today, onBack = { route = Route.Home })
             }
         }
+        SnackbarHost(
+            snackbar,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .imePadding()
+                .padding(bottom = if (route == Route.Question) 64.dp else 0.dp),
+        ) { Toast(it.visuals.message) }
     }
 }

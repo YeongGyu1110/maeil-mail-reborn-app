@@ -13,6 +13,7 @@ import java.time.LocalTime
  * - 알림: 켜기, 시각(한국 시간, 기본 07:00)
  * - 마지막으로 알린 발송일: 같은 날 두 번 알리지 않도록
  * - 화면 테마: 휴대폰 설정을 따르거나 라이트·다크로 고정
+ * - 답변을 열어 본 마지막 받은 질문: 첫 화면과 위젯에서 지난 질문을 더 보이지 않게 한다
  */
 class Settings private constructor(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
@@ -69,6 +70,25 @@ class Settings private constructor(context: Context) {
         _theme.value = value
     }
 
+    private val _opened = MutableStateFlow(prefs.getString(KEY_OPENED, null))
+    /** 답변을 열어 본 마지막 받은 질문의 ID. 날짜가 아니라 질문으로 기억해 쉬는 날에 열어도 맞는다 */
+    val opened: StateFlow<String?> = _opened.asStateFlow()
+
+    fun setOpened(id: String) {
+        prefs.edit().putString(KEY_OPENED, id).apply()
+        _opened.value = id
+    }
+
+    private val _noticeHidden = MutableStateFlow(prefs.getBoolean(KEY_NOTICE_HIDDEN, false))
+    /** 첫 화면에서 "알림이 꺼져 있어요" 안내를 닫았는지. 알림이 다시 켜지면 푼다 */
+    val noticeHidden: StateFlow<Boolean> = _noticeHidden.asStateFlow()
+
+    fun setNoticeHidden(value: Boolean) {
+        if (_noticeHidden.value == value) return
+        prefs.edit().putBoolean(KEY_NOTICE_HIDDEN, value).apply()
+        _noticeHidden.value = value
+    }
+
     /** 알림 권한을 처음 한 번 물었는지 (거절한 뒤로는 저절로 다시 묻지 않는다) */
     var askedNotificationPermission: Boolean
         get() = prefs.getBoolean(KEY_ASKED_PERMISSION, false)
@@ -83,6 +103,8 @@ class Settings private constructor(context: Context) {
         private const val KEY_ASKED_PERMISSION = "asked_notification_permission"
         private const val KEY_NEXT_ALARM = "next_alarm"
         private const val KEY_THEME = "theme"
+        private const val KEY_OPENED = "opened_question"
+        private const val KEY_NOTICE_HIDDEN = "notice_hidden"
 
         @Volatile
         private var instance: Settings? = null

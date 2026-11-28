@@ -1,6 +1,6 @@
 // 앱(MarkdownView.kt)이 render()로 질문을 넘겨 그린다.
 // 본문은 웹 질문 화면과 같은 방식(marked 기본값 + Prism)으로 그린다.
-// 본문 끝의 학습 기록(이해도·내 메모)은 웹 questions/index.html의 화면 코드를 옮겼다.
+// 본문 끝의 내 메모는 웹 questions/index.html의 화면 코드를 옮겼다. 이해도는 앱의 아래 막대가 맡는다.
 // 메모 보기·편집기는 웹과 같은 memo-ui.js가 그리고, 저장·GitHub 커밋·확인 창은 앱이 한다 (call()로 부탁한다).
 (function () {
   const meta = document.getElementById('meta');
@@ -59,7 +59,7 @@
     });
   }
 
-  // payload: { id, meta, title, markdown, dark }
+  // payload: { id, meta, title, markdown, dark, prev, next }  (prev·next: { id, title } 또는 null)
   window.render = function (payload) {
     document.documentElement.dataset.theme = payload.dark ? 'dark' : 'light';
     if (payload.id !== question.id) resetMemo();
@@ -69,46 +69,52 @@
     content.innerHTML = marked.parse(payload.markdown || '');
     Prism.highlightAllUnder(content);
     addCopyButtons();
+    showNear('prev', payload.prev);
+    showNear('next', payload.next);
+    document.getElementById('near').hidden = !payload.prev && !payload.next;
     window.scrollTo(0, 0);
   };
+
+  // 본문 끝의 이전·다음 질문
+  function showNear(which, target) {
+    const card = document.getElementById(`near-${which}`);
+    card.hidden = !target;
+    card.dataset.id = target?.id || '';
+    card.querySelector('.near-title').textContent = target?.title || '';
+  }
+
+  document.getElementById('near').addEventListener('click', (e) => {
+    const id = e.target.closest('.near-card')?.dataset.id;
+    if (id) tell('navigate', { id });
+  });
 
   window.setTheme = function (dark) {
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
   };
 
-  // ---------- 학습 기록 ----------
-  const LEVEL_LABELS = { new: '미학습', review: '복습 필요', done: '완벽 이해' };
-  const studySection = document.getElementById('study');
+  // ---------- 내 메모 ----------
+  const memoSection = document.getElementById('memo');
   const docStatus = document.getElementById('doc-status');
-  const statusLevel = document.getElementById('status-level');
   const statusMemo = document.getElementById('status-memo');
-  const options = [...document.querySelectorAll('.level-option')];
+  const memoRepo = document.getElementById('memo-repo');
   const memoBody = document.getElementById('memo-body');
   const memoEdit = document.getElementById('memo-edit');
 
   let question = { id: '', title: '' };
   // 이 질문의 학습 기록 (앱이 setStudy로 넘긴다). null이면 로그인하지 않음
-  // { level, memo, memoAt, uncommitted, canCommit, repo }
+  // { memo, memoAt, uncommitted, canCommit, repo }
   let study = null;
   const memoText = () => study?.memo || '';
 
-  function showLevel(level) {
-    for (const option of options) option.setAttribute('aria-checked', String(option.dataset.level === level));
-    statusLevel.dataset.level = level;
-    statusLevel.textContent = LEVEL_LABELS[level];
-    statusLevel.hidden = level === 'new';
-  }
-
-  // 제목 아래: 지금 이해도와 메모가 있는지. 처음 여는 질문은 거의 다 미학습이라 그때는 아무것도 보이지 않는다
+  // 제목 아래: 메모가 있는지
   function renderStatus() {
-    statusMemo.hidden = !memoText();
-    docStatus.hidden = !study || (statusLevel.hidden && statusMemo.hidden);
+    docStatus.hidden = !memoText();
   }
 
   window.setStudy = function (state) {
     study = state;
-    studySection.hidden = !state;
-    showLevel(state?.level || 'new');
+    memoSection.hidden = !state;
+    memoRepo.hidden = !state || state.canCommit;
     renderStatus();
     if (!state) {
       resetMemo();
@@ -122,25 +128,12 @@
     }
   };
 
-  for (const option of options) {
-    option.addEventListener('click', () => {
-      showLevel(option.dataset.level); // 앱이 저장하기 전에 먼저 바꿔 보인다
-      renderStatus();
-      window.MaeilApp?.setLevel(option.dataset.level);
-    });
-  }
-
-  const scrollTo = (el) => el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-  statusLevel.addEventListener('click', (e) => {
-    e.preventDefault();
-    scrollTo(studySection);
-  });
-
   statusMemo.addEventListener('click', (e) => {
     e.preventDefault();
-    scrollTo(document.getElementById('memo'));
+    memoSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
+
+  document.getElementById('memo-repo-pick').addEventListener('click', () => tell('pickRepo'));
 
   // ---------- 메모 초안: 저장하지 않고 떠나도 이 기기에 남겨 두었다가 이어 쓴다 ----------
   const DRAFT_DELAY = 500;

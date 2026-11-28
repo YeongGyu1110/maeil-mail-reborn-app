@@ -48,6 +48,19 @@ data class Progress(
     fun nextDateAfter(date: LocalDate): LocalDate? =
         next.keys.map(LocalDate::parse).filter { it.isAfter(date) }.minOrNull()
 
+    /** 받은 질문과 받은 날. 보낸 기록(sent)에는 날짜가 없어 모를 수 있다 */
+    data class Received(val id: String, val date: LocalDate?)
+
+    /** date보다 앞서 가장 최근에 받은 질문 (없으면 null). date의 질문은 이미 보냈어도 세지 않는다 */
+    fun lastBefore(date: LocalDate): Received? {
+        scheduled().filterKeys { it.isBefore(date) }.maxByOrNull { it.key }?.let { return Received(it.value, it.key) }
+        val today = questionOn(date)
+        return sent.lastOrNull { it != today }?.let { Received(it, null) }
+    }
+
+    /** 오늘과 앞으로 받을 질문을 하나도 모르는지. 발송 기록을 오래 받지 못하면 그렇게 된다 */
+    fun isStale(today: LocalDate): Boolean = hasNext && scheduled().keys.none { !it.isBefore(today) }
+
     /** 알림을 걸 수 있는 날짜와 질문: next 전부와, 이미 보낸 today */
     fun scheduled(): Map<LocalDate, String> {
         val out = sortedMapOf<LocalDate, String>()

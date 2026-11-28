@@ -21,17 +21,10 @@ object LineIcons {
     val ArrowLeft = icon("ArrowLeft", "M19 12H5", "M12 19l-7-7 7-7")
     val ArrowRight = icon("ArrowRight", "M5 12h14", "M12 5l7 7-7 7")
 
-    /** 오늘 탭 */
-    val Calendar = icon(
-        "Calendar",
-        "M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z",
-        "M16 2v4", "M8 2v4", "M3 10h18",
-    )
+    /** 최근 검색 */
+    val Clock = icon("Clock", "M22 12a10 10 0 1 1-20 0a10 10 0 1 1 20 0z", "M12 6v6l4 2")
 
-    /** 질문 탭 */
-    val List = icon("List", "M8 6h13", "M8 12h13", "M8 18h13", "M3 6h0.01", "M3 12h0.01", "M3 18h0.01")
-
-    /** 설정 탭 */
+    /** 설정 */
     val Sliders = icon(
         "Sliders",
         "M4 21v-7", "M4 10V3", "M12 21v-9", "M12 8V3", "M20 21v-5", "M20 12V3",
@@ -46,26 +39,26 @@ object LineIcons {
     /** 별표한 질문 (칠한 별) */
     val StarFilled = icon("StarFilled", STAR, filled = true)
 
-    /** 다크 테마로 (웹의 테마 전환 버튼: 라이트에서 보인다) */
-    val Moon = icon("Moon", "M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z")
-
-    /** 라이트 테마로 (다크에서 보인다) */
-    val Sun = icon(
-        "Sun",
-        "M17 12a5 5 0 1 1-10 0a5 5 0 1 1 10 0z",
-        "M12 1v2", "M12 21v2", "M4.22 4.22l1.42 1.42", "M18.36 18.36l1.42 1.42",
-        "M1 12h2", "M21 12h2", "M4.22 19.78l1.42-1.42", "M18.36 5.64l1.42-1.42",
-    )
-
     /** 메모 (웹의 메모 표시 아이콘) */
     val Pencil = icon("Pencil", "M12 20h9", "M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z")
 
-    /** 받은 질문 (웹의 받은 질문 필터 아이콘) */
-    val Inbox = icon(
-        "Inbox",
-        "M22 12h-6l-2 3h-4l-2-3H2",
-        "M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z",
-    )
+    /** GitHub 로고 (웹 GITHUB_ICON). 이것만 선이 아니라 칠한 모양이다 */
+    val GitHub: ImageVector = ImageVector.Builder(
+        name = "GitHub",
+        defaultWidth = 16.dp,
+        defaultHeight = 16.dp,
+        viewportWidth = 16f,
+        viewportHeight = 16f,
+    ).addPath(
+        pathData = PathParser().parsePathString(
+            "M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94" +
+                "-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07" +
+                "-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27" +
+                ".68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95" +
+                ".29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z",
+        ).toNodes(),
+        fill = SolidColor(Color.Black),
+    ).build()
 
     private fun icon(name: String, vararg paths: String, filled: Boolean = false): ImageVector {
         val builder = ImageVector.Builder(
