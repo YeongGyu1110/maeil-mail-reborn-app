@@ -122,8 +122,9 @@ fun App(openRequest: OpenRequest?, onOpenHandled: () -> Unit) {
     val records by Records.state.collectAsState()
     LaunchedEffect(records.notice) {
         val message = records.notice ?: return@LaunchedEffect
-        Records.clearNotice()
+        // 보여준 뒤에 지운다. 먼저 지우면 notice가 바뀌어 이 효과가 다시 시작되며, 띄우던 알림이 곧바로 닫힌다
         snackbar.showSnackbar(message)
+        Records.clearNotice()
     }
 
     // 이해도·별표를 저장하지 못했을 때 (설정에도 남아 있다)

@@ -37,7 +37,8 @@
     </div>
   </header>
   <main id="content"></main>
-  <!-- 내 메모: 보기·편집기는 웹과 같은 memo-ui.js가 그리고, 저장·GitHub 커밋은 앱이 한다. 로그인했을 때만 보인다 -->
+  <!-- 내 메모: 보기·편집기는 웹과 같은 memo-ui.js가 그리고, 저장·GitHub 커밋은 앱이 한다. 로그인했을 때만 보인다.
+       여기서는 메모를 보기만 하고, 고치는 것은 메모 창(#memo-window)에서 한다 -->
   <section id="memo" class="study" hidden>
     <div class="study-block-head">
       <h2 class="study-title">내 메모</h2>
@@ -61,7 +62,10 @@
     <button type="button" id="near-prev" class="near-card" hidden><span class="near-sub">← 이전 질문</span><span class="near-title"></span></button>
     <button type="button" id="near-next" class="near-card" hidden><span class="near-sub">다음 질문 →</span><span class="near-title"></span></button>
   </nav>
+  <!-- 메모 창: 메모를 고칠 때 본문 위에 겹쳐 여는 한 화면 (viewer.js가 채운다) -->
+  <section id="memo-window" class="memo-window" aria-label="메모" hidden></section>
   <script src="memo-core.js"></script>
+  <script src="memo-merge.js"></script>
   <script src="memo-ui.js"></script>
   <script src="viewer.js"></script>
 </body>

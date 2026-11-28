@@ -97,25 +97,45 @@ object FirestoreRest {
         return decodeFields(JSONObject(res.text).optJSONObject("fields"))
     }
 
-    /** 컬렉션의 문서들을 읽는다: 문서 ID → 필드. 컬렉션이 비어 있으면 빈 지도 */
+    /** 컬렉션의 문서들을 읽는다: 문서 ID → 필드. 컬렉션이 비어 있으면 빈 지도. 한 번에 100개씩, 끝까지 읽는다 */
     fun list(idToken: String, path: String): Map<String, Map<String, Any?>> {
-        val res = Http.get("$BASE/$path?pageSize=100", mapOf("Authorization" to "Bearer $idToken"))
-        if (!res.ok) throw error(res)
-        val docs = JSONObject(res.text).optJSONArray("documents") ?: return emptyMap()
-        return (0 until docs.length()).associate { i ->
-            val doc = docs.getJSONObject(i)
-            doc.getString("name").substringAfterLast('/') to decodeFields(doc.optJSONObject("fields"))
-        }
+        val result = LinkedHashMap<String, Map<String, Any?>>()
+        var pageToken: String? = null
+        do {
+            val page = pageToken?.let { "&pageToken=" + java.net.URLEncoder.encode(it, "UTF-8") }.orEmpty()
+            val res = Http.get("$BASE/$path?pageSize=100$page", mapOf("Authorization" to "Bearer $idToken"))
+            if (!res.ok) throw error(res)
+            val o = JSONObject(res.text)
+            val docs = o.optJSONArray("documents")
+            if (docs != null) {
+                for (i in 0 until docs.length()) {
+                    val doc = docs.getJSONObject(i)
+                    result[doc.getString("name").substringAfterLast('/')] = decodeFields(doc.optJSONObject("fields"))
+                }
+            }
+            pageToken = o.optString("nextPageToken").ifEmpty { null }
+        } while (pageToken != null)
+        return result
     }
 
     /**
-     * 문서 하나에 대한 merge 쓰기 (웹의 batch.set(ref, data, { merge: true })와 같다).
+     * 문서 하나에 대한 쓰기. 기본은 merge 쓰기다 (웹의 batch.set(ref, data, { merge: true })와 같다).
      * set으로 넣은 필드만 updateMask에 넣으므로 다른 필드는 그대로 둔다. 값이 null이면 그 필드를 지운다 (웹의 deleteField()).
-     * 문서가 없으면 만든다.
+     * 문서가 없으면 만든다. 문서를 통째로 바꾸거나 지우려면 replace, delete로 만든다.
      */
     class Write(val path: String) {
         internal val fields = LinkedHashMap<String, Any?>()
         internal val mask = mutableListOf<String>()
+        /** 문서를 보낸 필드로 통째로 바꾸는 쓰기 (replace) */
+        internal var whole = false
+            private set
+
+        /** 문서를 지우는 쓰기 (delete) */
+        internal var remove = false
+            private set
+
+        /** 보낼 것이 없는 쓰기 (merge 쓰기에 필드를 하나도 넣지 않았다) */
+        internal val isEmpty get() = !whole && !remove && mask.isEmpty()
 
         /** path: 필드 경로 칸들 (예: items, fe-1, level) */
         fun set(vararg path: String, value: Any?): Write {
@@ -131,19 +151,30 @@ object FirestoreRest {
             return this
         }
 
-        internal fun toJson(): JSONObject = JSONObject()
-            .put(
-                "update",
-                JSONObject()
-                    .put("name", "projects/${FirebaseConfig.PROJECT_ID}/databases/(default)/documents/$path")
-                    .put("fields", encodeFields(fields)),
-            )
-            .put("updateMask", JSONObject().put("fieldPaths", JSONArray(mask)))
+        internal fun toJson(): JSONObject {
+            val name = "projects/${FirebaseConfig.PROJECT_ID}/databases/(default)/documents/$path"
+            if (remove) return JSONObject().put("delete", name)
+            val o = JSONObject().put("update", JSONObject().put("name", name).put("fields", encodeFields(fields)))
+            // updateMask가 없으면 문서를 보낸 필드로 통째로 바꾼다
+            if (!whole) o.put("updateMask", JSONObject().put("fieldPaths", JSONArray(mask)))
+            return o
+        }
+
+        companion object {
+            /** 문서를 이 필드들로 통째로 바꾼다 (웹의 batch.set(ref, data)). 없으면 만든다 */
+            fun replace(path: String, fields: Map<String, Any?>): Write = Write(path).apply {
+                whole = true
+                this.fields.putAll(fields)
+            }
+
+            /** 문서를 지운다 (웹의 batch.delete). 문서가 없어도 오류가 아니다 */
+            fun delete(path: String): Write = Write(path).apply { remove = true }
+        }
     }
 
     /** 여러 문서 쓰기를 한 번에 보낸다 (웹의 writeBatch). 모두 되거나 모두 안 된다 */
     fun commit(idToken: String, writes: List<Write>) {
-        val list = writes.filter { it.mask.isNotEmpty() }
+        val list = writes.filter { !it.isEmpty }
         if (list.isEmpty()) return
         val body = JSONObject().put("writes", JSONArray().apply { list.forEach { put(it.toJson()) } })
         val res = Http.sendJson("POST", "$BASE:commit", body.toString(), mapOf("Authorization" to "Bearer $idToken"))

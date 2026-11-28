@@ -39,15 +39,24 @@ data class StudyState(val item: Records.Item, val canCommit: Boolean, val repo: 
         .put("uncommitted", item.memoUncommitted)
         .put("canCommit", canCommit)
         .put("repo", repo ?: JSONObject.NULL)
+        .put("draft", item.draft?.toJson() ?: JSONObject.NULL)
 }
+
+/** 본문 스크립트에 넘기는 초안 { text, at, base } */
+fun Records.Draft.toJson(): JSONObject = JSONObject().put("text", text).put("at", at).put("base", base)
 
 /** 화면이 본문 스크립트에 시키는 일 */
 class ViewerController {
     internal var webView: WebView? = null
 
-    /** 쓰던 메모를 버리고 편집기를 닫는다 (초안도 지운다) */
-    fun discardMemo() {
-        webView?.evaluateJavascript("discardMemo()", null)
+    /** 메모 창의 뒤로 가기: 펼친 목록을 닫거나, 겹친 곳 고르기를 그만두거나, 메모 창을 닫는다 (바뀐 것이 있으면 묻는다) */
+    fun back() {
+        webView?.evaluateJavascript("memoBack()", null)
+    }
+
+    /** 메모 창을 닫아도 되는지 묻는다 (저장하지 않은 변경이 있으면 초안 저장·버리기를 묻는다). 답은 본문 스크립트가 leave로 알린다 */
+    fun requestLeave(seq: Int) {
+        webView?.evaluateJavascript("requestLeave($seq)", null)
     }
 }
 
@@ -84,7 +93,7 @@ fun MarkdownView(
     val webView = remember {
         WebView(context).apply {
             settings.javaScriptEnabled = true
-            // 메모 초안과 편집기 보기 설정을 이 기기에 둔다 (localStorage)
+            // 편집기 보기 설정을 이 기기에 둔다 (localStorage). 예전 앱이 여기에 보관하던 쓰던 메모는 처음 열 때 계정의 초안으로 옮긴다
             settings.domStorageEnabled = true
             settings.allowFileAccess = false
             settings.allowContentAccess = false
@@ -142,6 +151,8 @@ fun MarkdownView(
             .put("title", title)
             .put("markdown", markdown)
             .put("dark", colors.isDark)
+            // 메모 창의 아이콘도 앱의 아이콘처럼 휴대폰 글자 크기를 따른다 (scaledIcon과 같은 비율)
+            .put("iconScale", fontScale.coerceIn(0.8f, 1.3f).toDouble())
             .put("prev", prev?.toJson() ?: JSONObject.NULL)
             .put("next", next?.toJson() ?: JSONObject.NULL)
         webView.evaluateJavascript("render($payload)", null)

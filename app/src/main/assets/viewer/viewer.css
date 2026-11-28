@@ -1,6 +1,7 @@
 /* 색은 웹 서비스 base.css의 색 변수를 그대로 옮겼다 (라이트 :root, 다크 [data-theme="dark"]).
    글자·여백은 웹 질문 화면(questions/index.html)의 좁은 화면 값을 따른다. */
 :root {
+  --bg-canvas: #e9ecef; /* 앱의 막대(캔버스)와 같은 색. 메모 창의 위아래 막대에 쓴다 */
   --bg-paper: #fdfdfd;
   --bg-subtle: #f3f4f6;
   --bg-hover: #e5e8eb;
@@ -41,6 +42,7 @@
 }
 
 [data-theme="dark"] {
+  --bg-canvas: #111113;
   --bg-paper: #1a1a1c;
   --bg-subtle: #212124;
   --bg-hover: #29292d;
@@ -276,6 +278,197 @@ h1#title {
 }
 
 .memo-repo .link-btn { min-height: 48px; padding: 0 8px; }
+
+/* 접힌 메모는 어디를 눌러도 펼친다 (viewer.js). 메모 창은 '편집'과 '이어 쓰기'로만 연다 */
+#memo-body > .memo-view.is-collapsed { cursor: pointer; }
+.memo-empty:active { background: var(--bg-subtle); }
+
+/* ---------- 메모 창: 메모를 고칠 때 본문 위에 겹쳐 여는 한 화면 (viewer.js openEditor) ----------
+   Gmail의 답장 창처럼 질문 화면의 위아래 막대를 가리고(앱이 숨긴다) 화면 전체를 쓴다.
+   위 막대에 닫기·보기 전환·저장·더보기, 지면에 질문 제목과 글, 아래 막대에 서식. 막대는 캔버스, 글은 지면, 구분은 선이다.
+   편집기(memo-ui.js)의 부품을 그대로 쓰고 자리만 옮기므로, 편집기 모양(memo.css)을 이기도록 #memo-window로 시작한다 */
+
+/* 메모 창을 연 동안 뒤의 본문은 넘어가지 않는다 (읽던 자리는 그대로 남는다) */
+html.is-writing, html.is-writing body { overflow: hidden; }
+
+.memo-window {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-canvas);
+}
+
+#memo-window .memo-editor {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  transition: none;
+}
+
+/* 위 막대 (앱의 상단 바와 같다: 높이 56, 면·구분선 없음) */
+.win-bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  min-height: 56px;
+  padding: 4px;
+}
+
+.win-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--text-sub);
+}
+
+.win-icon:active { background: var(--bg-hover); }
+.win-icon svg { width: calc(20px * var(--icon-scale, 1)); height: calc(20px * var(--icon-scale, 1)); }
+
+/* 보기 전환과 저장은 면 없는 글자로 둔다 (서비스에 면 블록이 드물다): 지금 보기는 진한 글자, 저장은 할 것이 있을 때만 초록 글자 */
+#memo-window .memo-modes { flex: none; gap: 0; padding: 0; border-radius: 0; background: none; }
+
+#memo-window .memo-mode,
+#memo-window [data-action="save"] {
+  height: 48px;
+  padding: 0 10px;
+  border-radius: var(--radius);
+  background: none;
+  box-shadow: none;
+  font-size: 15px;
+}
+
+#memo-window .memo-mode { font-weight: 500; color: var(--text-muted); }
+#memo-window .memo-mode[aria-pressed="true"] { font-weight: 700; color: var(--text-main); }
+#memo-window .memo-mode[data-mode="split"] { display: none; }
+#memo-window .memo-editor-buttons { gap: 0; }
+#memo-window [data-action="save"] { padding: 0 12px; font-weight: 700; color: var(--primary); }
+#memo-window [data-action="save"]:disabled { opacity: 1; color: var(--text-muted); }
+#memo-window .memo-mode:active,
+#memo-window [data-action="save"]:active:not(:disabled) { background: var(--bg-hover); }
+#memo-window [data-action="cancel"] { display: none; }
+
+/* 지면: 질문 제목과 글. 글 칸에 테두리나 면을 두지 않고, 글 길이만큼 늘어나 지면째로 넘긴다 */
+.win-paper {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--bg-paper);
+  cursor: text;
+}
+
+.win-paper > * { flex: none; }
+
+.win-head {
+  margin: 0 20px;
+  padding: 24px 0 18px;
+  border-bottom: 1px solid var(--rule-strong);
+  cursor: default;
+}
+
+.win-head .doc-meta { margin-bottom: 4px; }
+
+.win-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--text-main);
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+#memo-window .memo-panes { display: flex; flex: 1 0 auto; }
+#memo-window .memo-pane-preview { flex: 1; min-width: 0; }
+
+#memo-window .memo-input {
+  flex: 1;
+  height: auto !important; /* 편집기가 정한 높이(화면의 65%까지) 대신 글 길이만큼 늘린다 */
+  min-height: 0;
+  padding: 18px 20px;
+  field-sizing: content;
+}
+
+#memo-window .memo-preview { min-height: 0; padding: 18px 20px; cursor: default; }
+
+/* 글 아래: 글자 수 · 초안 상태 · 경고 · 커밋 안내 */
+.win-tail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 8px;
+  padding: 6px 20px 14px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  cursor: default;
+}
+
+#memo-window .win-tail > * { margin: 0; padding: 0; } /* 편집기의 꼬리 여백(memo.css)을 지운다 */
+.win-tail > :empty { display: none; }
+.win-tail > :not(:empty) ~ :not(:empty)::before { content: "·"; margin-right: 8px; }
+/* 자판 단축키 안내는 휴대폰에서 쓸 일이 드물어, 경고(비운 채 저장하면 지워요)만 보인다 */
+.win-tail .memo-hint:not(.is-warning) { display: none; }
+/* 커밋 안내는 길어서 늘 다음 줄에 둔다 (줄 첫머리에 구분점이 오지 않게) */
+.win-tail .memo-commit-note { flex-basis: 100%; }
+.win-tail .memo-commit-note::before { content: none !important; }
+
+/* 아래 막대: 서식 버튼만 (보기 전환은 위 막대로 옮겼다). 미리보기에서는 치워 지면을 넓힌다 */
+#memo-window .memo-toolbar {
+  flex: none;
+  flex-wrap: nowrap;
+  gap: 0;
+  min-height: 48px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 0;
+  background: var(--bg-canvas);
+}
+
+#memo-window .memo-editor[data-mode="preview"] .memo-toolbar { display: none; }
+#memo-window .memo-format { flex: 1; justify-content: space-between; margin: 0; }
+#memo-window .memo-format-btn { width: 38px; height: 44px; }
+#memo-window .memo-format-btn:active { background: var(--bg-hover); color: var(--text-main); }
+#memo-window .memo-format-sep { display: none; }
+
+/* 겹친 곳을 고르는 동안: 글 칸과 서식, 보기 전환·저장·더보기를 치운다 (←와 뒤로 가기는 고르기를 그만둔다) */
+#memo-window .is-resolving .memo-panes,
+#memo-window .is-resolving .win-tail,
+#memo-window .is-resolving .memo-toolbar,
+#memo-window .is-resolving .memo-modes,
+#memo-window .is-resolving .memo-editor-buttons { display: none; }
+/* 겹친 곳 고르기가 질문 제목 아래 남은 화면을 다 채우고, 메모 전체를 담은 상자가 그 안에서 늘어나 넘겨 보게 한다.
+   취소·편집기에 넣기는 늘 화면 아래에 보인다 (웹은 상자를 화면 높이의 70%까지만 키운다) */
+#memo-window .memo-conflict {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-height: 420px;
+  margin: 16px 20px;
+  cursor: default;
+}
+
+#memo-window .memo-conflict-file { flex: 1 1 0; min-height: 160px; max-height: none; }
+#memo-window .memo-conflict-foot { flex: none; }
+
+/* 더보기: ⋮ 아래로 펼치는 목록 (앱의 펼침 목록과 같은 모양). 목록 밖을 누르면 닫는다 */
+.win-shade { position: absolute; inset: 0; z-index: 19; }
+#memo-window .win-menu { top: 52px; right: 8px; bottom: auto; min-width: 236px; }
 
 /* ---------- 이전·다음 질문 (웹 .page-nav-card) ---------- */
 .near { margin-top: 40px; border-top: 1px solid var(--rule); }
