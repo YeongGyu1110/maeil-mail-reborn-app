@@ -49,22 +49,21 @@ data class StudyState(val item: Records.Item, val canCommit: Boolean, val repo: 
 fun Records.Draft.toJson(): JSONObject = JSONObject().put("text", text).put("at", at).put("base", base)
 
 /**
- * 좌우로 밀면 손가락을 따라 함께 보일 이전·다음 질문. 본문 스크립트가 이 질문의 문서를 미리 그려 둔다.
- * markdown이 ""이면 아직 읽지 못했거나 받아 둔 답변이 없다. prev·next는 그 질문의 이전·다음 질문(그림 끝의 제목)이다.
+ * 좌우로 밀면 손가락을 따라 함께 보일 이전·다음 질문. 본문 스크립트가 이 질문의 문서를 미리 그려 두고,
+ * 넘기면 이것으로 그 질문을 바로 그린다. markdown이 ""이면 아직 읽지 못했거나 받아 둔 답변이 없다.
  */
 data class Neighbor(
     val question: Question,
     val meta: String,
     val markdown: String,
     val study: StudyState?,
-    val prev: Question?,
-    val next: Question?,
 ) {
-    fun toJson(): JSONObject = question.toJson()
+    fun toJson(): JSONObject = JSONObject()
+        .put("id", question.id)
+        .put("title", question.title)
         .put("meta", meta)
         .put("markdown", markdown)
         .put("study", study?.toJson() ?: JSONObject.NULL)
-        .put("near", JSONObject().put("prev", prev?.toJson() ?: JSONObject.NULL).put("next", next?.toJson() ?: JSONObject.NULL))
 }
 
 /** 화면이 본문 스크립트에 시키는 일 */
@@ -85,7 +84,7 @@ class ViewerController {
 /**
  * 마크다운 본문을 웹 서비스와 같은 방식(marked + Prism)으로 그린다. assets/viewer/viewer.html 참고.
  * 한 화면에서 질문을 넘길 때는 WebView를 새로 만들지 않고 render()로 내용만 바꾼다.
- * 본문 끝의 학습 기록과 이전·다음 질문도 이 안에서 그린다. 메모 편집기는 웹과 같은 memo-ui.js다.
+ * 본문 끝의 학습 기록도 이 안에서 그린다. 메모 편집기는 웹과 같은 memo-ui.js다.
  * 좌우로 밀어 옆 질문으로 넘기는 것도 본문 스크립트가 한다: 옆 질문을 미리 그려 두고 손가락을 따라 보이다가, 넘기면 navigate로 알린다.
  *
  * onRequest: 본문 스크립트가 앱에 부탁하는 일 (확인 창, 메모 저장 등). reply로 답하면 스크립트가 이어서 한다.
@@ -99,7 +98,7 @@ fun MarkdownView(
     title: String,
     markdown: String,
     modifier: Modifier = Modifier,
-    /** 이전·다음 질문: 본문 끝에 제목을 보이고, 좌우로 밀면 함께 보인다 */
+    /** 이전·다음 질문: 좌우로 밀면 손가락을 따라 함께 보인다 */
     prev: Neighbor? = null,
     next: Neighbor? = null,
     /** 그 너머의 질문. 넘긴 직후 앱이 따라잡기 전에 한 번 더 넘겨도 옆 질문이 있게 미리 넘긴다 */
@@ -219,7 +218,6 @@ fun MarkdownView(
     AndroidView(factory = { webView }, modifier = modifier)
 }
 
-private fun Question.toJson(): JSONObject = JSONObject().put("id", id).put("title", title)
 
 /** 본문 스크립트가 부르는 앱 기능. 스크립트는 WebView의 별도 스레드에서 부르므로 화면 스레드로 넘긴다 */
 private class Bridge(

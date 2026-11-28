@@ -596,36 +596,6 @@ html.is-writing, html.is-writing body { overflow: hidden; }
 .win-shade { position: absolute; inset: 0; z-index: 19; }
 #memo-window .win-menu { top: 52px; right: 8px; bottom: auto; min-width: 236px; }
 
-/* ---------- 이전·다음 질문 (웹 .page-nav-card) ---------- */
-.near { margin-top: 40px; border-top: 1px solid var(--rule); }
-
-.near-card {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  width: 100%;
-  padding: 14px 0;
-  border: none;
-  background: none;
-  color: inherit;
-  font: inherit;
-  letter-spacing: inherit;
-  text-align: left;
-}
-
-.near-card:not([hidden]) + .near-card { border-top: 1px solid var(--rule); }
-.near-card:active .near-title { text-decoration: underline; text-underline-offset: 3px; }
-.near-sub { font-size: 12.5px; font-weight: 600; color: var(--text-muted); }
-
-.near-title {
-  font-size: 14.5px;
-  font-weight: 600;
-  color: var(--text-main);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* ---------- 본문 ---------- */
 .doc-content {
   font-size: 15.5px;

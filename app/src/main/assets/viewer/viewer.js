@@ -73,18 +73,6 @@
     addCopyButtons(el);
   }
 
-  // 본문 끝의 이전·다음 질문. near: { prev: { id, title } | null, next: … }
-  function drawNear(root, near) {
-    for (const which of ['prev', 'next']) {
-      const card = root.querySelector(`.near-${which}`);
-      const target = near?.[which];
-      card.hidden = !target;
-      card.dataset.id = target?.id || '';
-      card.querySelector('.near-title').textContent = target?.title || '';
-    }
-    root.querySelector('.near').hidden = !near?.prev && !near?.next;
-  }
-
   // 읽던 자리: 질문 ID → scrollY. 옆 질문으로 넘겼다가 돌아오면 읽던 자리에서 다시 보인다 (이 화면을 연 동안만 기억한다)
   const positions = new Map();
   // 새 질문을 그린 뒤 돌아갈 자리. 학습 기록(setStudy)이 늦게 와 문서가 길어지면 한 번 더 맞춘다. 손을 대면 그만둔다
@@ -135,11 +123,6 @@
     showQuestion(payload);
   };
 
-  document.getElementById('near').addEventListener('click', (e) => {
-    const card = e.target.closest('.near-card');
-    if (card?.dataset.id) go(card.classList.contains('near-prev') ? 'prev' : 'next');
-  });
-
   // ---------- 좌우로 밀어 옆 질문으로 넘기기 (Gmail처럼) ----------
   // 손가락을 따라 문서가 옆으로 움직이고, 옆 질문이 함께 들어온다. 화면 폭의 35%를 넘게 밀었거나 빠르게 튕기면 넘기고, 아니면 제자리로 돌아온다.
   // 가로로 분명하게 밀 때만 넘긴다: 가로로 움직인 거리가 세로의 두 배를 넘어야 한다 (안드로이드 ViewPager와 같은 기준). 위아래로 읽다가 넘어가지 않게 한다.
@@ -160,7 +143,7 @@
   const FLING = 0.4; // 이보다 빠르게(px/ms) 튕기면 조금만 밀어도 넘긴다
   let swipe = { state: 'idle' }; // idle | dragging | settling (finish: 움직임을 바로 끝낸다)
   let gesture = null; // 지금 손가락 하나의 움직임
-  // 앞뒤 질문: { id, title, meta, markdown, study, near } (앱이 setNeighbors로 넘긴다). prev2·next2는 그 너머의 질문
+  // 앞뒤 질문: { id, title, meta, markdown, study } (앱이 setNeighbors로 넘긴다). prev2·next2는 그 너머의 질문
   let neighbors = { prev2: null, prev: null, next: null, next2: null };
   let peekTimer = 0;
 
@@ -173,7 +156,6 @@
       next: payload?.next || null,
       next2: payload?.next2 || null,
     };
-    drawNear(page, neighbors);
     // 지금 보는 문서를 먼저 그리고, 옆 질문은 잠시 뒤에 미리 그려 둔다 (밀기 시작할 때 아직이면 그때 그린다)
     if (swipe.state === 'idle') schedulePeeks(150);
   };
@@ -185,7 +167,6 @@
     meta: shown.meta,
     markdown: shown.markdown,
     study,
-    near: { prev: neighbors.prev && { id: neighbors.prev.id, title: neighbors.prev.title }, next: neighbors.next && { id: neighbors.next.id, title: neighbors.next.title } },
   });
 
   // first 쪽 옆 질문부터 미리 그린다 (넘긴 방향으로 이어 넘기기 쉽다)
@@ -240,7 +221,6 @@
       doc.querySelector('.memo-edit').hidden = !record.memo || Boolean(record.draft);
       doc.querySelector('.memo-repo').hidden = Boolean(record.canCommit);
     }
-    drawNear(doc, data.near);
     panel.replaceChildren(doc);
   }
 
@@ -318,21 +298,9 @@
     neighbors = side === 'next'
       ? { prev2: neighbors.prev, prev: here, next: neighbors.next2, next2: null }
       : { prev2: null, prev: neighbors.prev2, next: here, next2: neighbors.next };
-    drawNear(page, neighbors);
     passed.set(target.id, Date.now());
     trace('advance', target.id);
     tell('navigate', { id: target.id });
-  }
-
-  // 본문 끝의 이전·다음 질문을 누르면 민 것처럼 넘긴다
-  function go(side) {
-    if (swipe.state === 'settling') swipe.finish();
-    if (swipe.state !== 'idle' || !neighbors[side] || !memoWindow.hidden) return;
-    ensurePeek(side);
-    place(0, side);
-    // 옆 질문이 화면 밖 제자리에 놓인 것을 먼저 그리게 한다 (같은 순간에 옮기면 미끄러지지 않고 바로 나타난다)
-    void peeks[side].offsetWidth;
-    commit(side);
   }
 
   // 손가락의 움직임은 처음 닿은 요소로 간다. 넘기면서 그 요소가 문서에서 빠지면(새 질문을 그림) 문서까지 올라오지 않으므로,

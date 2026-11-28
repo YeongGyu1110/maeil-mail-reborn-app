@@ -39,7 +39,7 @@ import org.json.JSONObject
 
 /**
  * 질문 화면: 답변을 한 장의 문서로 읽고, 본문 끝의 학습 기록에서 이해도를 고르고 메모를 본다.
- * 위는 돌아갈 목록의 이름, 순서, 별표다. 아래 막대는 없고, 본문이 화면 아래 끝까지 닿는다. 이전·다음 질문의 제목은 본문 끝에 있다.
+ * 위는 돌아갈 목록의 이름, 순서, 별표다. 아래 막대는 없고, 본문이 화면 아래 끝까지 닿는다. 이전·다음 질문으로는 좌우로 밀어 넘긴다.
  * 메모는 메모 창에서 고친다: 본문 위에 겹쳐 여는 한 화면으로, 열려 있는 동안 위 막대를 숨기고 뒤로 가기는 메모 창이 받는다.
  * 메모 창을 연 채 떠나려 하면(알림으로 다른 질문 열기) 메모 창이 먼저 저장하지 않은 변경을 어떻게 할지 묻는다.
  *
@@ -116,8 +116,6 @@ fun QuestionScreen(
             meta = metaOf(q),
             markdown = nearContent[q.id].orEmpty(),
             study = if (records.signedIn) studyOf(records, q.id) else null,
-            prev = order.getOrNull(at - 1)?.let(state.catalog::question),
-            next = order.getOrNull(at + 1)?.let(state.catalog::question),
         )
     }
 
