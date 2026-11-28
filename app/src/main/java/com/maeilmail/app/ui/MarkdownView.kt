@@ -102,6 +102,9 @@ fun MarkdownView(
     /** 이전·다음 질문: 본문 끝에 제목을 보이고, 좌우로 밀면 함께 보인다 */
     prev: Neighbor? = null,
     next: Neighbor? = null,
+    /** 그 너머의 질문. 넘긴 직후 앱이 따라잡기 전에 한 번 더 넘겨도 옆 질문이 있게 미리 넘긴다 */
+    prev2: Neighbor? = null,
+    next2: Neighbor? = null,
     /** 이 질문의 학습 기록. null이면 학습 기록 칸을 감춘다 (로그인하지 않음) */
     study: StudyState? = null,
     /** 본문이 화면 아래 끝(손잡이 뒤)까지 닿을 때, 본문의 끝을 그만큼 더 띄운다 */
@@ -168,7 +171,8 @@ fun MarkdownView(
         }
     }
 
-    // 차례가 중요하다: render → setStudy → setNeighbors. 넘겨서 온 질문은 학습 기록까지 그린 뒤에 넘기던 그림을 걷는다
+    // 차례: render → setStudy → setNeighbors. 좌우로 넘기면 본문 스크립트가 먼저 그 질문을 그리고 navigate로 알리므로,
+    // 여기서 넘기는 것은 뒤따라 맞추는 것이다. 빠르게 여러 번 넘기면 지나간 질문의 것이 늦게 가므로 질문 ID를 함께 넘긴다
     LaunchedEffect(pageReady, key, markdown, title) {
         if (!pageReady) return@LaunchedEffect
         val payload = JSONObject()
@@ -185,15 +189,18 @@ fun MarkdownView(
     // 학습 기록은 본문을 다시 그리지 않고 그 칸만 바꾼다 (웹에서 바뀐 기록을 받아 와도 읽던 자리가 그대로다)
     LaunchedEffect(pageReady, key, study) {
         if (!pageReady) return@LaunchedEffect
-        webView.evaluateJavascript("setStudy(${study?.toJson() ?: "null"})", null)
+        webView.evaluateJavascript("setStudy(${study?.toJson() ?: "null"}, ${JSONObject.quote(key)})", null)
     }
 
     // 옆 질문은 본문과 따로 넘긴다 (옆 질문의 기록이나 본문만 바뀌어도 지금 문서를 다시 그리지 않는다)
-    LaunchedEffect(pageReady, key, prev, next) {
+    LaunchedEffect(pageReady, key, prev, next, prev2, next2) {
         if (!pageReady) return@LaunchedEffect
         val payload = JSONObject()
+            .put("id", key)
+            .put("prev2", prev2?.toJson() ?: JSONObject.NULL)
             .put("prev", prev?.toJson() ?: JSONObject.NULL)
             .put("next", next?.toJson() ?: JSONObject.NULL)
+            .put("next2", next2?.toJson() ?: JSONObject.NULL)
         webView.evaluateJavascript("setNeighbors($payload)", null)
     }
 

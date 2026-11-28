@@ -90,13 +90,22 @@ fun QuestionScreen(
 
     val index = order.indexOf(id)
 
-    // 좌우로 밀면 함께 보일 이전·다음 질문의 본문 (질문 ID → 본문). 보던 질문이나 순서가 바뀌면 다시 읽는다
+    // 좌우로 밀면 함께 보일 앞뒤 두 질문씩의 본문 (질문 ID → 본문). 보던 질문이나 순서가 바뀌면 다시 읽는다.
+    // 빠르게 여러 번 넘겨도 본문 스크립트가 앱을 기다리지 않고 이어서 넘기도록, 바로 옆 너머의 질문까지 넘긴다
     val shownId = loaded?.first
-    var nearContent by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    // 목차가 바뀌면(답변을 새로 받음) 읽어 둔 본문을 버리고 새로 읽는다
+    var nearContent by remember(state.catalog) { mutableStateOf<Map<String, String>>(emptyMap()) }
     LaunchedEffect(shownId, order, state.catalog) {
         val at = order.indexOf(shownId)
-        val ids = if (at < 0) emptyList() else listOfNotNull(order.getOrNull(at - 1), order.getOrNull(at + 1))
-        nearContent = ids.associateWith { near -> state.catalog.question(near)?.let { Library.content(it) }.orEmpty() }
+        if (at < 0) return@LaunchedEffect
+        val loadedNow = HashMap<String, String>()
+        // 바로 옆 질문을 먼저 넘기고, 그 너머는 뒤이어 넘긴다. 이미 읽어 둔 것은 다시 읽지 않는다
+        for (step in listOf(listOf(-1, 1), listOf(-2, 2))) {
+            for (near in step.mapNotNull { order.getOrNull(at + it) }) {
+                loadedNow[near] = nearContent[near] ?: state.catalog.question(near)?.let { Library.content(it) }.orEmpty()
+            }
+            nearContent = HashMap(loadedNow)
+        }
     }
 
     /** 순서에서 at번째 질문을 옆 질문으로 (없으면 null) */
@@ -155,6 +164,8 @@ fun QuestionScreen(
                     modifier = Modifier.fillMaxSize(),
                     prev = order.indexOf(shownQuestion.id).takeIf { it >= 0 }?.let { neighborAt(it - 1) },
                     next = order.indexOf(shownQuestion.id).takeIf { it >= 0 }?.let { neighborAt(it + 1) },
+                    prev2 = order.indexOf(shownQuestion.id).takeIf { it >= 0 }?.let { neighborAt(it - 2) },
+                    next2 = order.indexOf(shownQuestion.id).takeIf { it >= 0 }?.let { neighborAt(it + 2) },
                     study = if (records.signedIn) studyOf(records, shownQuestion.id) else null,
                     bottomInset = if (memoOpen) 0.dp else WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
                     controller = viewer,
