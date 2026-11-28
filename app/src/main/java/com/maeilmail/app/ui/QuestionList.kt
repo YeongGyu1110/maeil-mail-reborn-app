@@ -16,11 +16,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,6 +35,8 @@ import com.maeilmail.app.data.AREAS
 import com.maeilmail.app.data.Library
 import com.maeilmail.app.data.Question
 import com.maeilmail.app.ui.theme.AppTheme
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import com.maeilmail.app.ui.theme.LineIcons
 import com.maeilmail.app.ui.theme.Radius
 import com.maeilmail.app.ui.theme.TextStyles
@@ -63,6 +67,36 @@ fun LazyListScope.questionIndex(
             QuestionRow(q, first = i == 0, records = records, onClick = { onOpen(q) })
         }
     }
+}
+
+/** questionIndex 안에서 그 질문 행의 순번 (구분 제목도 센다). 없으면 -1 */
+fun questionIndexOf(visible: List<Question>, grouped: Boolean, id: String): Int {
+    if (!grouped) return visible.indexOfFirst { it.id == id }
+    var at = 0
+    for (area in AREAS) {
+        val inArea = visible.filter { it.area == area.prefix }
+        if (inArea.isEmpty()) continue
+        at++ // 구분 제목
+        val i = inArea.indexOfFirst { it.id == id }
+        if (i >= 0) return at + i
+        at += inArea.size
+    }
+    return -1
+}
+
+/**
+ * 질문 화면에서 돌아왔을 때, 마지막에 본 질문의 행이 화면 밖이면 그 행이 보이게 목록을 옮긴다
+ * (옆으로 넘기며 여러 질문을 본 뒤에 목록의 처음 자리로 돌아오지 않게). 이미 다 보이면 그대로 둔다.
+ * index: 목록에서 그 행의 순번 (목록 앞의 다른 항목도 센다). 바로 위의 행 하나를 함께 보인다
+ */
+suspend fun LazyListState.follow(id: String, index: Int) {
+    if (index < 0) return
+    // 돌아온 목록을 그린 뒤에 본다
+    withTimeoutOrNull(1000) { snapshotFlow { layoutInfo.totalItemsCount }.first { it > index } } ?: return
+    val info = layoutInfo
+    val row = info.visibleItemsInfo.firstOrNull { it.key == id }
+    if (row != null && row.offset >= info.viewportStartOffset && row.offset + row.size <= info.viewportEndOffset) return
+    scrollToItem((index - 1).coerceAtLeast(0))
 }
 
 /**

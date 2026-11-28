@@ -22,9 +22,12 @@
   <link rel="stylesheet" href="memo.css">
 </head>
 <body>
+  <!-- 한 질문의 문서. 좌우로 밀면 손가락을 따라 옆으로 움직이고, 옆 질문(#peek-prev, #peek-next)이 함께 들어온다 (viewer.js 넘기기).
+       옆 질문은 이 문서의 틀을 복사해 그리므로, 모양은 id가 아닌 class로 준다 -->
+  <div id="page" class="page">
   <header class="doc-header">
     <div id="meta" class="doc-meta"></div>
-    <h1 id="title"></h1>
+    <h1 id="title" class="doc-title"></h1>
     <!-- 지금 이해도와 메모가 있는지 (웹 .doc-status). 기록한 것이 있을 때만 보이고, 누르면 학습 기록으로 내려간다 -->
     <div id="doc-status" class="doc-status" hidden>
       <a id="status-level" class="level-badge" href="#study" hidden></a>
@@ -37,7 +40,7 @@
       </a>
     </div>
   </header>
-  <main id="content"></main>
+  <main id="content" class="doc-content"></main>
   <!-- 학습 기록 (웹 .study): 답을 읽은 뒤 이해도를 고르고, 내 메모를 본다. 로그인했을 때만 보인다.
        메모 보기·편집기는 웹과 같은 memo-ui.js가 그리고, 저장·GitHub 커밋은 앱이 한다.
        여기서는 메모를 보기만 하고, 고치는 것은 메모 창(#memo-window)에서 한다 -->
@@ -58,7 +61,7 @@
     <div id="memo" class="study-block">
       <div class="study-block-head">
         <h3 class="study-block-title">내 메모</h3>
-        <button type="button" id="memo-edit" class="btn btn-sm btn-soft" hidden>
+        <button type="button" id="memo-edit" class="btn btn-sm btn-soft memo-edit" hidden>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M12 20h9"></path>
             <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
@@ -66,7 +69,7 @@
           편집
         </button>
       </div>
-      <div id="memo-body"></div>
+      <div id="memo-body" class="memo-body"></div>
       <!-- 메모 저장소를 아직 고르지 않았을 때만 보인다 -->
       <p id="memo-repo" class="memo-repo" hidden>
         <span>저장소를 고르면 메모가 GitHub에도 커밋돼요</span>
@@ -76,9 +79,13 @@
   </section>
   <!-- 이전·다음 질문 (웹 .page-nav-card). 앱이 보던 목록의 순서로 넘긴다 -->
   <nav id="near" class="near" aria-label="이전·다음 질문">
-    <button type="button" id="near-prev" class="near-card" hidden><span class="near-sub">← 이전 질문</span><span class="near-title"></span></button>
-    <button type="button" id="near-next" class="near-card" hidden><span class="near-sub">다음 질문 →</span><span class="near-title"></span></button>
+    <button type="button" id="near-prev" class="near-card near-prev" hidden><span class="near-sub">← 이전 질문</span><span class="near-title"></span></button>
+    <button type="button" id="near-next" class="near-card near-next" hidden><span class="near-sub">다음 질문 →</span><span class="near-title"></span></button>
   </nav>
+  </div>
+  <!-- 좌우로 밀 때 함께 들어오는 옆 질문. 이전 질문은 왼쪽, 다음 질문은 오른쪽에서 온다. 보기만 하는 그림이다 -->
+  <div id="peek-prev" class="peek" aria-hidden="true" inert></div>
+  <div id="peek-next" class="peek" aria-hidden="true" inert></div>
   <!-- 메모 창: 메모를 고칠 때 본문 위에 겹쳐 여는 한 화면 (viewer.js가 채운다) -->
   <section id="memo-window" class="memo-window" aria-label="메모" hidden></section>
   <script src="memo-core.js"></script>

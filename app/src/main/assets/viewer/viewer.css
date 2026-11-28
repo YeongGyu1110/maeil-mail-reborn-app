@@ -120,8 +120,8 @@ html, body {
 }
 
 body {
-  /* 웹 좁은 화면의 문서 지면 여백 (.doc-container padding 28px 20px). 아래는 시스템 손잡이 자리(--inset-bottom)만큼 더 띄운다 */
-  padding: 28px 20px calc(32px + var(--inset-bottom, 0px));
+  /* 옆으로 밀어 넘기는 동안 문서와 옆 질문이 화면 밖으로 나가도 가로로 넘어가지 않는다 */
+  overflow-x: hidden;
   font-family: "Pretendard", system-ui, sans-serif;
   line-height: 1.6;
   letter-spacing: -0.015em;
@@ -129,6 +129,33 @@ body {
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
 }
+
+/* ---------- 한 질문의 문서 (#page)와 옆 질문 (.peek) ----------
+   여백은 웹 좁은 화면의 문서 지면 여백 (.doc-container padding 28px 20px). 아래는 시스템 손잡이 자리(--inset-bottom)만큼 더 띄운다.
+   가로로 미는 것은 브라우저가 화면을 넘기지 않고 viewer.js가 받는다 (touch-action: pan-y). 옆으로 넘치는 코드·표는 스스로 넘어간다 */
+.page {
+  min-height: 100vh;
+  padding: 28px 20px calc(32px + var(--inset-bottom, 0px));
+  background: var(--bg-paper);
+  touch-action: pan-y;
+}
+
+/* 옆 질문: 화면을 가득 덮는 그림 한 장. 넘기기 전에는 화면 밖(왼쪽·오른쪽)에 둔다. 읽던 자리가 있으면 그 자리를 보인다 (scrollTop) */
+.peek {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  overflow: hidden;
+  background: var(--bg-paper);
+  pointer-events: none;
+}
+
+/* 두 문서가 맞닿는 곳에 옅은 선 하나. 화면 밖에 둘 때는 그 선까지 밖으로 뺀다 */
+#peek-prev { box-shadow: 1px 0 0 var(--rule); transform: translate3d(calc(-100% - 2px), 0, 0); }
+#peek-next { box-shadow: -1px 0 0 var(--rule); transform: translate3d(calc(100% + 2px), 0, 0); }
+/* 문서와 옆 질문을 미리 따로 그려 둔다. 밀기 시작할 때 새로 그리느라 처음 몇 장면이 멈추지 않게 한다 */
+.page, .peek { will-change: transform; }
+.page.is-settling, .peek.is-settling { transition: transform 0.22s cubic-bezier(0.2, 0, 0, 1); }
 
 /* ---------- 문서 머리: 분류 → 제목 → 머리 구분선 (웹 .doc-header) ---------- */
 .doc-header {
@@ -145,7 +172,7 @@ body {
   letter-spacing: 0.01em;
 }
 
-h1#title {
+.doc-title {
   margin: 0;
   font-size: 23px;
   font-weight: 700;
@@ -203,8 +230,8 @@ h1#title {
 .btn-soft { background-color: var(--bg-subtle); }
 .btn-sm { height: 34px; padding: 0 11px; font-size: 13px; }
 /* 보이는 높이는 다른 버튼과 같고(34px), 손가락으로 누르는 자리만 둘레로 넓힌다 */
-#memo-edit { position: relative; }
-#memo-edit::after { content: ""; position: absolute; inset: -7px -6px; }
+.memo-edit { position: relative; }
+.memo-edit::after { content: ""; position: absolute; inset: -7px -6px; }
 
 /* 글자처럼 보이는 작은 버튼 (웹 .link-btn) */
 .link-btn {
@@ -379,7 +406,7 @@ h1#title {
 .memo-repo .link-btn { min-height: 48px; padding: 0 8px; }
 
 /* 접힌 메모는 어디를 눌러도 펼친다 (viewer.js). 메모 창은 '편집'과 '이어 쓰기'로만 연다 */
-#memo-body > .memo-view.is-collapsed { cursor: pointer; }
+.memo-body > .memo-view.is-collapsed { cursor: pointer; }
 .memo-empty:active { background: var(--bg-subtle); }
 
 /* ---------- 메모 창: 메모를 고칠 때 본문 위에 겹쳐 여는 한 화면 (viewer.js openEditor) ----------
@@ -600,7 +627,7 @@ html.is-writing, html.is-writing body { overflow: hidden; }
 }
 
 /* ---------- 본문 ---------- */
-#content {
+.doc-content {
   font-size: 15.5px;
   line-height: 1.85;
   color: var(--text-sub);
@@ -608,10 +635,10 @@ html.is-writing, html.is-writing body { overflow: hidden; }
   overflow-wrap: break-word;
 }
 
-#content > *:first-child { margin-top: 0; }
-#content > *:last-child { margin-bottom: 0; }
+.doc-content > *:first-child { margin-top: 0; }
+.doc-content > *:last-child { margin-bottom: 0; }
 
-#content h2 {
+.doc-content h2 {
   font-size: 20px;
   font-weight: 700;
   line-height: 1.5;
@@ -619,46 +646,46 @@ html.is-writing, html.is-writing body { overflow: hidden; }
   color: var(--text-main);
 }
 
-#content h3 {
+.doc-content h3 {
   font-size: 17px;
   font-weight: 700;
   margin: 32px 0 10px;
   color: var(--text-main);
 }
 
-#content h4 {
+.doc-content h4 {
   font-size: 15.5px;
   font-weight: 600;
   margin: 24px 0 8px;
   color: var(--text-main);
 }
 
-#content p { margin: 18px 0; }
-#content strong { font-weight: 700; color: var(--text-main); }
-#content ul, #content ol { padding-left: 22px; margin: 18px 0; }
-#content li { margin-bottom: 6px; }
-#content li::marker { color: var(--text-muted); }
-#content img { max-width: 100%; }
+.doc-content p { margin: 18px 0; }
+.doc-content strong { font-weight: 700; color: var(--text-main); }
+.doc-content ul, .doc-content ol { padding-left: 22px; margin: 18px 0; }
+.doc-content li { margin-bottom: 6px; }
+.doc-content li::marker { color: var(--text-muted); }
+.doc-content img { max-width: 100%; }
 
-#content hr {
+.doc-content hr {
   border: none;
   border-top: 1px solid var(--rule);
   margin: 36px 0;
 }
 
 /* 인용구: 왼쪽 세로줄만 */
-#content blockquote {
+.doc-content blockquote {
   margin: 22px 0;
   padding: 2px 0 2px 18px;
   border-left: 2px solid var(--rule-strong);
   color: var(--text-muted);
 }
 
-#content blockquote > :first-child { margin-top: 0; }
-#content blockquote > :last-child { margin-bottom: 0; }
+.doc-content blockquote > :first-child { margin-top: 0; }
+.doc-content blockquote > :last-child { margin-bottom: 0; }
 
 /* 표: 위·아래 굵은 선과 머리 아래 선만 두는 문서식 표. 좁은 화면이라 가로로 넘겨 본다 */
-#content table {
+.doc-content table {
   display: block;
   overflow-x: auto;
   white-space: nowrap;
@@ -670,7 +697,7 @@ html.is-writing, html.is-writing body { overflow: hidden; }
   border-bottom: 1.5px solid var(--text-main);
 }
 
-#content th {
+.doc-content th {
   padding: 10px 14px;
   border-bottom: 1px solid var(--rule-strong);
   text-align: left;
@@ -678,15 +705,15 @@ html.is-writing, html.is-writing body { overflow: hidden; }
   color: var(--text-main);
 }
 
-#content td {
+.doc-content td {
   padding: 10px 14px;
   text-align: left;
   vertical-align: top;
 }
 
-#content tbody tr + tr td { border-top: 1px solid var(--rule); }
+.doc-content tbody tr + tr td { border-top: 1px solid var(--rule); }
 
-#content code:not(pre code) {
+.doc-content code:not(pre code) {
   background: var(--code-inline-bg);
   color: var(--code-inline-color);
   padding: 2px 5px;
@@ -701,7 +728,7 @@ html.is-writing, html.is-writing body { overflow: hidden; }
   margin: 24px 0;
 }
 
-#content pre {
+.doc-content pre {
   background-color: var(--code-block-bg);
   border-radius: 3px;
   /* 터치 화면이라 복사 버튼이 늘 보이므로, 코드 첫 줄을 가리지 않게 위쪽에 버튼 자리를 띄운다 */
@@ -715,7 +742,7 @@ html.is-writing, html.is-writing body { overflow: hidden; }
   tab-size: 2;
 }
 
-#content pre code {
+.doc-content pre code {
   font-family: inherit;
   color: inherit;
 }
@@ -738,7 +765,7 @@ html.is-writing, html.is-writing body { overflow: hidden; }
 .code-copy-btn:active { background: var(--bg-hover); }
 .code-copy-btn.copied { color: var(--primary); }
 
-#content a {
+.doc-content a {
   color: var(--primary);
   text-decoration: underline;
   text-decoration-thickness: 1px;

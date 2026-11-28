@@ -90,6 +90,28 @@ fun QuestionScreen(
 
     val index = order.indexOf(id)
 
+    // 좌우로 밀면 함께 보일 이전·다음 질문의 본문 (질문 ID → 본문). 보던 질문이나 순서가 바뀌면 다시 읽는다
+    val shownId = loaded?.first
+    var nearContent by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    LaunchedEffect(shownId, order, state.catalog) {
+        val at = order.indexOf(shownId)
+        val ids = if (at < 0) emptyList() else listOfNotNull(order.getOrNull(at - 1), order.getOrNull(at + 1))
+        nearContent = ids.associateWith { near -> state.catalog.question(near)?.let { Library.content(it) }.orEmpty() }
+    }
+
+    /** 순서에서 at번째 질문을 옆 질문으로 (없으면 null) */
+    fun neighborAt(at: Int): Neighbor? {
+        val q = order.getOrNull(at)?.let(state.catalog::question) ?: return null
+        return Neighbor(
+            question = q,
+            meta = metaOf(q),
+            markdown = nearContent[q.id].orEmpty(),
+            study = if (records.signedIn) studyOf(records, q.id) else null,
+            prev = order.getOrNull(at - 1)?.let(state.catalog::question),
+            next = order.getOrNull(at + 1)?.let(state.catalog::question),
+        )
+    }
+
     // 화면 끝까지 그리므로(edge-to-edge) 키보드가 올라와도 창이 줄지 않는다. 키보드만큼 직접 줄여 메모 칸과 버튼이 가리지 않게 한다
     Column(Modifier.fillMaxSize().background(colors.bgCanvas).imePadding()) {
         // 메모 창은 본문(WebView) 안에서 화면 전체를 쓰므로, 위 막대를 숨기고 상태 표시줄과 아래 손잡이 자리만 비운다.
@@ -131,8 +153,8 @@ fun QuestionScreen(
                     title = shownQuestion.title,
                     markdown = shown.second,
                     modifier = Modifier.fillMaxSize(),
-                    prev = order.getOrNull(order.indexOf(shownQuestion.id) - 1)?.let { state.catalog.question(it) },
-                    next = order.getOrNull(order.indexOf(shownQuestion.id) + 1)?.let { state.catalog.question(it) },
+                    prev = order.indexOf(shownQuestion.id).takeIf { it >= 0 }?.let { neighborAt(it - 1) },
+                    next = order.indexOf(shownQuestion.id).takeIf { it >= 0 }?.let { neighborAt(it + 1) },
                     study = if (records.signedIn) studyOf(records, shownQuestion.id) else null,
                     bottomInset = if (memoOpen) 0.dp else WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
                     controller = viewer,
