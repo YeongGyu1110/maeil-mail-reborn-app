@@ -82,6 +82,9 @@ fun HomeScreen(
     onOpen: (question: Question, order: List<String>, from: String) -> Unit,
     onSearch: () -> Unit,
     onSettings: () -> Unit,
+    /** 질문 화면에서 돌아왔을 때 마지막에 본 질문. 목록이 그 질문이 보이게 옮긴 뒤 onFollowed로 지운다 */
+    follow: String? = null,
+    onFollowed: () -> Unit = {},
 ) {
     val colors = AppTheme.colors
     val catalog = state.catalog
@@ -126,6 +129,25 @@ fun HomeScreen(
     }
     val order = remember(visible) { visible.map { it.id } }
     val fullOrder = remember(catalog) { catalog.questions.map { it.id } }
+    // 오늘의 질문은 받은 순서로 넘긴다: 밀면 지난번에 받은 질문이 나온다 (받은 질문이 아니면 전체 목록 순서)
+    val todayOrder = remember(received, fullOrder, today.id) { if (today.id in received) received else fullOrder }
+
+    // 목록 앞에 무엇을 두는지 (아래 LazyColumn과 같은 조건. 마지막에 본 질문의 행 순번을 셀 때도 쓴다)
+    val todayQuestion = today.id?.let(catalog::question)
+    val opened = today.id != null && today.id == openedId
+    val showNotice = blocked != null && notify.enabled && !noticeHidden && !filter.active
+    val showToday = !filter.active || (!filter.received && todayQuestion != null && !opened)
+    val showProgress = filter.received && filter.name == "받은 질문" && records.signedIn
+
+    // 질문 화면에서 돌아오면 마지막에 본 질문이 보이게 목록을 옮긴다 (옆으로 넘기며 여러 질문을 봤을 때)
+    LaunchedEffect(follow) {
+        val id = follow ?: return@LaunchedEffect
+        onFollowed()
+        val at = questionIndexOf(visible, grouped = !filter.received, id)
+        if (at < 0) return@LaunchedEffect
+        val leading = listOf(showNotice, showToday, true, showProgress).count { it }
+        listState.follow(id, leading + at)
+    }
 
     // 필터를 바꾸면 목록 맨 위로
     LaunchedEffect(filter) {
@@ -166,14 +188,12 @@ fun HomeScreen(
                             },
                         ) {
                             val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-                            val todayQuestion = today.id?.let(catalog::question)
-                            val opened = today.id != null && today.id == openedId
                             LazyColumn(
                                 state = listState,
                                 modifier = Modifier.fillMaxSize(),
                                 contentPadding = PaddingValues(bottom = bottom + 24.dp),
                             ) {
-                                if (blocked != null && notify.enabled && !noticeHidden && !filter.active) {
+                                if (showNotice && blocked != null) {
                                     item(key = "notice") {
                                         NoticeBar(
                                             text = "알림이 꺼져 있어 질문이 와도 알 수 없어요",
@@ -185,16 +205,16 @@ fun HomeScreen(
                                 }
                                 if (!filter.active) {
                                     item(key = "today") {
-                                        TodayBlock(today, todayQuestion, opened, records) { onOpen(it, fullOrder, ListFilter.DEFAULT_NAME) }
+                                        TodayBlock(today, todayQuestion, opened, records) { onOpen(it, todayOrder, ListFilter.DEFAULT_NAME) }
                                     }
-                                } else if (!filter.received && todayQuestion != null && !opened) {
+                                } else if (showToday && todayQuestion != null) {
                                     // 필터가 남아 있어도 오늘의 질문을 놓치지 않게 한 줄은 남긴다
                                     item(key = "today") {
-                                        TodayLine(today.label, todayQuestion) { onOpen(todayQuestion, fullOrder, ListFilter.DEFAULT_NAME) }
+                                        TodayLine(today.label, todayQuestion) { onOpen(todayQuestion, todayOrder, ListFilter.DEFAULT_NAME) }
                                     }
                                 }
                                 item(key = "head") { ListHead(filter, shown = visible.size, total = base.size) }
-                                if (filter.received && filter.name == "받은 질문" && records.signedIn) {
+                                if (showProgress) {
                                     item(key = "progress") { StudyProgress(received, records) }
                                 }
                                 if (visible.isEmpty()) {

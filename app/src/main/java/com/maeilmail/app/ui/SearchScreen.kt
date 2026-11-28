@@ -75,6 +75,9 @@ fun SearchScreen(
     listState: LazyListState,
     onOpen: (question: Question, order: List<String>, from: String) -> Unit,
     onBack: () -> Unit,
+    /** 질문 화면에서 돌아왔을 때 마지막에 본 질문. 결과가 그 질문이 보이게 옮긴 뒤 onFollowed로 지운다 */
+    follow: String? = null,
+    onFollowed: () -> Unit = {},
 ) {
     val colors = AppTheme.colors
     val context = LocalContext.current
@@ -107,6 +110,13 @@ fun SearchScreen(
         history.prune()
         // 처음 열 때만 자판을 올린다 (결과를 보고 돌아왔을 때는 올리지 않는다)
         if (query.isEmpty()) focus.requestFocus()
+    }
+    // 질문 화면에서 돌아오면 마지막에 본 질문이 보이게 결과를 옮긴다 (결과 머리 한 줄 뒤에 색인이 온다)
+    LaunchedEffect(follow) {
+        val id = follow ?: return@LaunchedEffect
+        onFollowed()
+        val at = questionIndexOf(results, grouped = true, id)
+        if (at >= 0) listState.follow(id, 1 + at)
     }
     // 결과를 손으로 밀면 자판을 내려 결과를 넓게 보인다
     LaunchedEffect(listState) {

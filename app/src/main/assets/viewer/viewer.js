@@ -1,6 +1,6 @@
 // 앱(MarkdownView.kt)이 render()로 질문을 넘겨 그린다.
 // 본문은 웹 질문 화면과 같은 방식(marked 기본값 + Prism)으로 그린다.
-// 본문 끝의 내 메모는 웹 questions/index.html의 화면 코드를 옮겼다. 이해도는 앱의 아래 막대가 맡는다.
+// 본문 끝의 학습 기록(이해도 → 내 메모)은 웹 questions/index.html의 화면 코드를 옮겼다. 이해도의 저장은 앱이 한다.
 // 메모는 본문에서 고치지 않고 메모 창에서 고친다: 본문 위에 겹쳐 여는 한 화면으로, Gmail의 답장 창처럼 질문 화면의 막대를 가린다.
 // 메모 보기·편집기·겹친 곳 고르기는 웹과 같은 memo-ui.js가 그리고, 저장·GitHub 커밋·확인 창·알림은 앱이 한다 (call()로 부탁한다).
 (function () {
@@ -40,8 +40,8 @@
   // 화면 아래 알림 (앱의 토스트)
   const toast = (text) => tell('toast', { text });
 
-  function addCopyButtons() {
-    content.querySelectorAll('pre').forEach((pre) => {
+  function addCopyButtons(root) {
+    root.querySelectorAll('pre').forEach((pre) => {
       const wrapper = document.createElement('div');
       wrapper.className = 'code-wrapper';
       pre.parentNode.insertBefore(wrapper, pre);
@@ -66,45 +66,369 @@
     });
   }
 
-  // payload: { id, meta, title, markdown, dark, iconScale, prev, next }  (prev·next: { id, title } 또는 null)
+  // 답변 본문: 웹과 같은 marked 기본값 + Prism, 코드마다 복사 버튼
+  function drawMarkdown(el, markdown) {
+    el.innerHTML = marked.parse(markdown || '');
+    Prism.highlightAllUnder(el);
+    addCopyButtons(el);
+  }
+
+  // 읽던 자리: 질문 ID → scrollY. 옆 질문으로 넘겼다가 돌아오면 읽던 자리에서 다시 보인다 (이 화면을 연 동안만 기억한다)
+  const positions = new Map();
+  // 새 질문을 그린 뒤 돌아갈 자리. 학습 기록(setStudy)이 늦게 와 문서가 길어지면 한 번 더 맞춘다. 손을 대면 그만둔다
+  let pendingScroll = null;
+
+  function restoreScroll() {
+    if (pendingScroll !== null) window.scrollTo(0, pendingScroll);
+  }
+
+  // 지금 보는 질문의 분류와 본문 (넘긴 뒤 이 질문이 옆 질문이 될 때 그대로 쓴다)
+  let shown = { meta: '', markdown: '' };
+
+  // 문서에 한 질문을 그린다 (앱의 render와 넘기기가 함께 쓴다). 다른 질문이면 읽던 자리를 기억하고 그 질문의 자리로 간다.
+  // 같은 질문을 새로 받으면(저장소와 맞춤) 본문이 바뀌었을 때만 다시 그리고 읽던 자리를 그대로 둔다
+  function showQuestion(data) {
+    const id = data.id || '';
+    const moved = id !== question.id;
+    if (moved) {
+      if (question.id) positions.set(question.id, window.scrollY);
+      resetMemo();
+      studySig = ''; // 다른 질문의 기록은 같은 내용이어도 새로 그린다 (메모 칸을 비웠다)
+    }
+    question = { id, title: data.title || '' };
+    meta.textContent = data.meta || '';
+    title.textContent = data.title || '';
+    if (moved || (data.markdown || '') !== shown.markdown) drawMarkdown(content, data.markdown);
+    shown = { meta: data.meta || '', markdown: data.markdown || '' };
+    if (moved) {
+      pendingScroll = positions.get(id) || 0;
+      restoreScroll();
+    }
+  }
+
+  // 넘기기로 이 문서가 앱보다 먼저 바꾼 질문 (질문 ID → 시각). 빠르게 여러 번 넘기면 앱이 그 사이의 질문을 뒤따라 render()로
+  // 넘기는데, 이미 지나간 질문이라 그리지 않는다 (잠시 동안만. 그 뒤에 오는 것은 앱이 따로 연 질문이다)
+  const passed = new Map();
+  const PASSED_MS = 3000;
+  const isPassed = (id) => Date.now() - (passed.get(id) || 0) < PASSED_MS;
+
+  // payload: { id, meta, title, markdown, dark, iconScale }. 학습 기록은 setStudy로, 이전·다음 질문은 setNeighbors로 따로 온다
   window.render = function (payload) {
     document.documentElement.dataset.theme = payload.dark ? 'dark' : 'light';
     // 글자 옆 아이콘은 휴대폰 글자 크기를 따라 바뀐다 (앱의 scaledIcon과 같은 비율)
     document.documentElement.style.setProperty('--icon-scale', String(payload.iconScale || 1));
-    if (payload.id !== question.id) resetMemo();
-    question = { id: payload.id || '', title: payload.title || '' };
-    meta.textContent = payload.meta || '';
-    title.textContent = payload.title || '';
-    content.innerHTML = marked.parse(payload.markdown || '');
-    Prism.highlightAllUnder(content);
-    addCopyButtons();
-    showNear('prev', payload.prev);
-    showNear('next', payload.next);
-    document.getElementById('near').hidden = !payload.prev && !payload.next;
-    window.scrollTo(0, 0);
+    const id = payload.id || '';
+    if (id !== question.id && isPassed(id)) return;
+    if (id === question.id) passed.clear(); // 앱이 따라잡았다
+    showQuestion(payload);
   };
 
-  // 본문 끝의 이전·다음 질문
-  function showNear(which, target) {
-    const card = document.getElementById(`near-${which}`);
-    card.hidden = !target;
-    card.dataset.id = target?.id || '';
-    card.querySelector('.near-title').textContent = target?.title || '';
+  // ---------- 좌우로 밀어 옆 질문으로 넘기기 (Gmail처럼) ----------
+  // 손가락을 따라 문서가 옆으로 움직이고, 옆 질문이 함께 들어온다. 화면 폭의 35%를 넘게 밀었거나 빠르게 튕기면 넘기고, 아니면 제자리로 돌아온다.
+  // 가로로 분명하게 밀 때만 넘긴다: 가로로 움직인 거리가 세로의 두 배를 넘어야 한다 (안드로이드 ViewPager와 같은 기준). 위아래로 읽다가 넘어가지 않게 한다.
+  // 넘기지 않는 때: 메모 창이 열려 있을 때, 글자를 고르는 중일 때, 옆으로 넘치는 코드·표 위에서 밀 때(그 코드를 민다), 손가락이 둘일 때.
+  // 옆 질문의 그림은 이 문서의 틀(#page)을 복사해 같은 코드로 그린다. 보기만 하는 그림이라 누를 수 없다.
+  // 넘기면 앱을 기다리지 않고 이 문서에 옆 질문을 바로 그리고(가지고 있는 본문과 기록으로), 앱에는 뒤따라 넘기라고 알린다(navigate).
+  // 그래서 넘긴 직후에 바로 다시 밀 수 있다. 넘어가는 움직임 중에 다시 닿으면 그 움직임을 바로 끝내고 새로 민다.
+  // 다음 다음 질문까지(앞뒤 두 개씩) 받아 두어, 앱이 따라잡기 전에 한 번 더 넘겨도 옆 질문이 있다.
+  const page = document.getElementById('page');
+  const peeks = { prev: document.getElementById('peek-prev'), next: document.getElementById('peek-next') };
+  // 아무것도 그리기 전의 문서 틀 (id는 지워 옆 질문의 그림과 겹치지 않게 한다)
+  const pageTemplate = page.cloneNode(true);
+  pageTemplate.removeAttribute('id');
+  pageTemplate.querySelectorAll('[id]').forEach((el) => el.removeAttribute('id'));
+
+  const SLOP = 10; // 이만큼 움직인 뒤에 가로인지 세로인지 정한다 (px)
+  const COMMIT = 0.35; // 화면 폭의 이만큼을 넘게 밀면 넘긴다
+  const FLING = 0.4; // 이보다 빠르게(px/ms) 튕기면 조금만 밀어도 넘긴다
+  let swipe = { state: 'idle' }; // idle | dragging | settling (finish: 움직임을 바로 끝낸다)
+  let gesture = null; // 지금 손가락 하나의 움직임
+  // 앞뒤 질문: { id, title, meta, markdown, study } (앱이 setNeighbors로 넘긴다). prev2·next2는 그 너머의 질문
+  let neighbors = { prev2: null, prev: null, next: null, next2: null };
+  let peekTimer = 0;
+
+  window.setNeighbors = function (payload) {
+    // 빠르게 넘기는 동안 앱이 뒤따라 넘기는 지나간 질문의 이웃은 버린다
+    if (payload?.id && payload.id !== question.id) return;
+    neighbors = {
+      prev2: payload?.prev2 || null,
+      prev: payload?.prev || null,
+      next: payload?.next || null,
+      next2: payload?.next2 || null,
+    };
+    // 지금 보는 문서를 먼저 그리고, 옆 질문은 잠시 뒤에 미리 그려 둔다 (밀기 시작할 때 아직이면 그때 그린다)
+    if (swipe.state === 'idle') schedulePeeks(150);
+  };
+
+  // 지금 질문을 옆 질문의 모양으로 (넘긴 뒤 이 질문이 옆 질문이 된다)
+  const hereAsNeighbor = () => ({
+    id: question.id,
+    title: question.title,
+    meta: shown.meta,
+    markdown: shown.markdown,
+    study,
+  });
+
+  // first 쪽 옆 질문부터 미리 그린다 (넘긴 방향으로 이어 넘기기 쉽다)
+  function schedulePeeks(delay, first = 'next') {
+    clearTimeout(peekTimer);
+    peekTimer = setTimeout(() => {
+      if (swipe.state !== 'idle') return;
+      ensurePeek(first);
+      ensurePeek(first === 'next' ? 'prev' : 'next');
+    }, delay);
   }
 
-  document.getElementById('near').addEventListener('click', (e) => {
-    const id = e.target.closest('.near-card')?.dataset.id;
-    if (id) tell('navigate', { id });
-  });
+  // 옆 질문의 그림이 지금의 이웃과 같은지 보고, 다르면 새로 그린다. 읽던 자리가 있으면 그 자리를 보인다
+  function ensurePeek(which) {
+    const panel = peeks[which];
+    const data = neighbors[which];
+    const sig = data ? JSON.stringify(data) : '';
+    if (panel.sig !== sig) {
+      drawPeek(panel, data);
+      panel.sig = sig;
+    }
+    panel.scrollTop = data ? positions.get(data.id) || 0 : 0;
+  }
+
+  function drawPeek(panel, data) {
+    panel.views?.forEach((view) => view.destroy());
+    panel.views = [];
+    panel.dataset.id = data?.id || '';
+    if (!data) {
+      panel.replaceChildren();
+      return;
+    }
+    const doc = pageTemplate.cloneNode(true);
+    doc.querySelector('.doc-meta').textContent = data.meta || '';
+    doc.querySelector('.doc-title').textContent = data.title || '';
+    drawMarkdown(doc.querySelector('.doc-content'), data.markdown);
+    const record = data.study || null;
+    drawStatus(doc, record);
+    doc.querySelector('.study').hidden = !record;
+    if (record) {
+      drawLevel(doc, record.level || 'new');
+      const nodes = [];
+      if (record.draft) nodes.push(draftNotice(record.draft));
+      if (record.memo) {
+        const view = UI.createMemoView(record.memo, { id: `peek-${data.id}` });
+        panel.views.push(view);
+        nodes.push(view.el, memoFoot(record));
+      } else if (!record.draft) {
+        nodes.push(emptyMemo());
+      }
+      doc.querySelector('.memo-body').replaceChildren(...nodes);
+      doc.querySelector('.memo-edit').hidden = !record.memo || Boolean(record.draft);
+      doc.querySelector('.memo-repo').hidden = Boolean(record.canCommit);
+    }
+    panel.replaceChildren(doc);
+  }
+
+  // 시험할 때만: window.__swipeLog = []를 넣으면 넘기기를 정한 까닭을 남긴다
+  const trace = (...args) => window.__swipeLog?.push(args.join(' '));
+
+  const hasSelection = () => {
+    const selection = window.getSelection();
+    return Boolean(selection && selection.rangeCount && !selection.isCollapsed);
+  };
+
+  // 손가락 아래에서 옆으로 넘치는 코드·표 (그 위에서는 질문을 넘기지 않고 코드를 민다)
+  function scrollerAt(target) {
+    for (let el = target; el && el !== page; el = el.parentElement) {
+      if (el.scrollWidth > el.clientWidth + 1 && /auto|scroll/.test(getComputedStyle(el).overflowX)) return el;
+    }
+    return null;
+  }
+
+  // 문서를 x만큼 옆으로 옮기고, side 쪽 옆 질문을 그 옆에 붙인다
+  function place(x, side) {
+    const width = window.innerWidth;
+    page.style.transform = x ? `translate3d(${x}px, 0, 0)` : '';
+    for (const which of ['prev', 'next']) {
+      const panel = peeks[which];
+      const shownHere = which === side;
+      panel.classList.toggle('is-shown', shownHere);
+      panel.style.transform = shownHere ? `translate3d(${which === 'prev' ? x - width : x + width}px, 0, 0)` : '';
+    }
+  }
+
+  // 지금 자리에서 x로 미끄러져 간 뒤 done을 부른다. 그 사이에 다시 닿으면 swipe.finish()로 바로 끝낸다
+  function settle(x, side, done) {
+    const animated = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let finished = false;
+    const finish = (e) => {
+      // 문서 안 다른 것(이해도 칸 등)의 움직임이 끝난 것은 거른다
+      if (finished || (e?.type === 'transitionend' && e.target !== page)) return;
+      finished = true;
+      page.removeEventListener('transitionend', finish);
+      for (const el of [page, peeks.prev, peeks.next]) el.classList.remove('is-settling');
+      swipe = { state: 'idle' };
+      done();
+    };
+    swipe = { state: 'settling', finish };
+    if (animated) {
+      for (const el of [page, peeks[side] || page]) el.classList.add('is-settling');
+      page.addEventListener('transitionend', finish);
+      setTimeout(finish, 320); // 움직이지 않아(이미 그 자리) transitionend가 오지 않을 때
+    }
+    place(x, side);
+    if (!animated) finish();
+  }
+
+  function settleBack(side) {
+    settle(0, side, () => place(0, null));
+  }
+
+  // side 쪽 질문으로 넘긴다: 끝까지 미끄러진 뒤 그 질문을 이 문서에 그리고 옆 질문의 그림을 걷는다 (같은 순간이라 이어서 보인다)
+  function commit(side) {
+    settle(side === 'prev' ? window.innerWidth : -window.innerWidth, side, () => {
+      advance(side);
+      place(0, null);
+      schedulePeeks(0, side);
+    });
+  }
+
+  // 옆 질문을 지금 질문으로: 가지고 있는 본문과 기록으로 바로 그리고, 앞뒤 질문을 한 칸 옮긴 뒤 앱에 알린다
+  function advance(side) {
+    const target = neighbors[side];
+    const here = hereAsNeighbor();
+    showQuestion(target);
+    applyStudy(target.study || null);
+    studySig = JSON.stringify(target.study || null);
+    neighbors = side === 'next'
+      ? { prev2: neighbors.prev, prev: here, next: neighbors.next2, next2: null }
+      : { prev2: null, prev: neighbors.prev2, next: here, next2: neighbors.next };
+    passed.set(target.id, Date.now());
+    trace('advance', target.id);
+    tell('navigate', { id: target.id });
+  }
+
+  // 손가락의 움직임은 처음 닿은 요소로 간다. 넘기면서 그 요소가 문서에서 빠지면(새 질문을 그림) 문서까지 올라오지 않으므로,
+  // 처음 닿은 요소에도 같은 처리를 붙인다. 두 곳에서 받으면 한 번만 처리한다
+  function onTouchStart(e) {
+    pendingScroll = null;
+    if (gesture?.mode === 'swipe' && e.touches.length > 1) {
+      // 밀던 중에 손가락이 하나 더 닿으면 그만둔다
+      const side = gesture.side;
+      endTracking();
+      settleBack(neighbors[side] ? side : null);
+      return;
+    }
+    // 넘어가는 중에 다시 닿으면 그 움직임을 바로 끝내고 새로 민다 (빠르게 여러 번 넘길 때 손가락을 놓치지 않는다)
+    if (swipe.state === 'settling' && e.touches.length === 1) swipe.finish();
+    if (e.touches.length !== 1 || swipe.state !== 'idle' || !memoWindow.hidden || memoWindow.contains(e.target) || hasSelection()) {
+      trace('start-skip', e.touches.length, swipe.state, memoWindow.hidden, hasSelection());
+      endTracking();
+      return;
+    }
+    const touch = e.touches[0];
+    endTracking();
+    gesture = {
+      x0: touch.clientX,
+      y0: touch.clientY,
+      mode: scrollerAt(e.target) ? 'native' : 'undecided',
+      samples: [[e.timeStamp, touch.clientX]],
+      x: 0,
+      side: null,
+      target: e.target,
+    };
+    gesture.target.addEventListener('touchmove', onTouchMove, { passive: false });
+    gesture.target.addEventListener('touchend', onTouchEnd);
+    gesture.target.addEventListener('touchcancel', onTouchEnd);
+    trace('start', gesture.mode);
+  }
+
+  function endTracking() {
+    if (!gesture) return;
+    gesture.target.removeEventListener('touchmove', onTouchMove);
+    gesture.target.removeEventListener('touchend', onTouchEnd);
+    gesture.target.removeEventListener('touchcancel', onTouchEnd);
+    gesture = null;
+  }
+
+  // 같은 움직임을 처음 닿은 요소와 문서에서 두 번 받지 않는다
+  const firstTime = (e) => {
+    if (e.swipeSeen) return false;
+    e.swipeSeen = true;
+    return true;
+  };
+
+  function onTouchMove(e) {
+    if (!gesture || e.touches.length !== 1 || !firstTime(e)) return;
+    const touch = e.touches[0];
+    const dx = touch.clientX - gesture.x0;
+    const dy = touch.clientY - gesture.y0;
+    if (gesture.mode === 'undecided') {
+      const ax = Math.abs(dx);
+      const ay = Math.abs(dy);
+      if (ax > SLOP && ax * 0.5 > ay) {
+        // 브라우저가 이미 위아래로 넘기기 시작했으면(취소할 수 없는 움직임) 넘기지 않는다
+        if (!e.cancelable || hasSelection() || !memoWindow.hidden) {
+          trace('move-native', e.cancelable, hasSelection());
+          gesture.mode = 'native';
+          return;
+        }
+        trace('swipe', Math.round(dx), Math.round(dy));
+        gesture.mode = 'swipe';
+        gesture.x0 += Math.sign(dx) * SLOP; // 정하느라 움직인 만큼 튀지 않게 그 자리에서 시작한다
+        swipe = { state: 'dragging' };
+        ensurePeek(dx < 0 ? 'next' : 'prev');
+        ensurePeek(dx < 0 ? 'prev' : 'next');
+      } else if (ay > SLOP) {
+        trace('vertical', Math.round(dx), Math.round(dy));
+        gesture.mode = 'native';
+      }
+    }
+    if (gesture.mode !== 'swipe') return;
+    e.preventDefault();
+    const raw = touch.clientX - gesture.x0;
+    const side = raw > 0 ? 'prev' : raw < 0 ? 'next' : gesture.side;
+    // 그쪽에 질문이 없으면(목록의 처음·끝, 또는 아직 받지 못함) 덜 따라오게 해서 끝임을 알린다
+    gesture.x = neighbors[side] ? raw : raw / 3;
+    gesture.side = side;
+    gesture.samples.push([e.timeStamp, touch.clientX]);
+    if (gesture.samples.length > 8) gesture.samples.shift();
+    place(gesture.x, neighbors[side] ? side : null);
+  }
+
+  function onTouchEnd(e) {
+    const ended = gesture;
+    if (!ended || e.touches.length || !firstTime(e)) return;
+    endTracking();
+    if (ended.mode !== 'swipe') return;
+    // 마지막 0.1초 동안의 빠르기 (px/ms)
+    const [lastTime, lastX] = ended.samples[ended.samples.length - 1];
+    const [startTime, startX] = ended.samples.find(([time]) => lastTime - time <= 100) || ended.samples[0];
+    const velocity = lastTime > startTime ? (lastX - startX) / (lastTime - startTime) : 0;
+    const side = ended.side;
+    const far = Math.abs(ended.x) > window.innerWidth * COMMIT;
+    const flung = Math.abs(velocity) > FLING && Math.sign(velocity) === Math.sign(ended.x) && Math.abs(ended.x) > 24;
+    trace('end', e.type, Math.round(ended.x), velocity.toFixed(2), far, flung);
+    if (e.type === 'touchend' && neighbors[side] && (far || flung)) commit(side);
+    else settleBack(neighbors[side] ? side : null);
+  }
+
+  // 문서에 붙인 touchmove가 있어야 브라우저가 움직임마다 이 처리를 기다린다 (가로로 밀 때 화면이 위아래로 넘어가지 않게 막을 수 있다)
+  document.addEventListener('touchstart', onTouchStart, { passive: true });
+  document.addEventListener('touchmove', onTouchMove, { passive: false });
+  document.addEventListener('touchend', onTouchEnd);
+  document.addEventListener('touchcancel', onTouchEnd);
 
   window.setTheme = function (dark) {
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
   };
 
-  // ---------- 내 메모 ----------
+  // 본문이 화면 아래 끝(시스템 손잡이 뒤)까지 닿으므로, 본문의 끝을 그만큼 더 띄운다 (앱이 dp로 알려 준다)
+  window.setInsets = function ({ bottom = 0 } = {}) {
+    document.documentElement.style.setProperty('--inset-bottom', `${bottom}px`);
+  };
+
+  // ---------- 학습 기록: 이해도 · 내 메모 ----------
+  const studySection = document.getElementById('study');
   const memoSection = document.getElementById('memo');
-  const docStatus = document.getElementById('doc-status');
+  const statusLevel = document.getElementById('status-level');
   const statusMemo = document.getElementById('status-memo');
+  const levelOptions = [...document.querySelectorAll('#level-control .level-option')];
   const memoRepo = document.getElementById('memo-repo');
   const memoBody = document.getElementById('memo-body');
   const memoEdit = document.getElementById('memo-edit');
@@ -112,31 +436,95 @@
 
   let question = { id: '', title: '' };
   // 이 질문의 학습 기록 (앱이 setStudy로 넘긴다). null이면 로그인하지 않음
-  // { memo, memoAt, uncommitted, canCommit, repo, draft: { text, at, base } | null }
+  // { level: 'new' | 'review' | 'done', memo, memoAt, uncommitted, canCommit, repo, draft: { text, at, base } | null }
   let study = null;
   const memoText = () => study?.memo || '';
   const draftOf = () => study?.draft || null;
+  const levelOf = () => study?.level || 'new';
   // 이 글을 메모로 저장하면 GitHub에 커밋하는지 (앱의 Records.saveMemo와 같은 조건)
   const willCommit = (text) => Boolean(study?.canCommit) && Boolean(text) && (text !== memoText() || Boolean(study?.uncommitted));
+  const LEVEL_LABELS = { new: '미학습', review: '복습 필요', done: '완벽 이해' };
 
-  // 제목 아래: 메모나 초안이 있는지
-  function renderStatus() {
-    docStatus.hidden = !memoText() && !draftOf();
+  // 제목 아래: 지금 이해도와 메모(초안)가 있는지. 처음 여는 질문은 거의 다 미학습이라 그때는 수준을 보이지 않는다 (웹과 같다).
+  // root는 이 문서(#page) 또는 옆 질문의 그림, record는 그 질문의 학습 기록
+  function drawStatus(root, record) {
+    const level = record?.level || 'new';
+    const badge = root.querySelector('.level-badge');
+    const memo = root.querySelector('.status-memo');
+    badge.dataset.level = level;
+    badge.textContent = LEVEL_LABELS[level];
+    badge.hidden = level === 'new';
+    memo.hidden = !record?.memo && !record?.draft;
+    root.querySelector('.doc-status').hidden = !record || (badge.hidden && memo.hidden);
   }
 
-  window.setStudy = function (state) {
+  function drawLevel(root, level) {
+    for (const option of root.querySelectorAll('.level-option')) {
+      const checked = option.dataset.level === level;
+      option.setAttribute('aria-checked', String(checked));
+      option.tabIndex = checked ? 0 : -1;
+    }
+  }
+
+  const renderStatus = () => drawStatus(page, study);
+  const renderLevel = () => drawLevel(page, levelOf());
+
+  // 고르면 바로 바꿔 그리고 저장은 앱에 맡긴다 (앱이 바뀐 기록을 setStudy로 다시 넘긴다)
+  function setLevel(level) {
+    if (!study || levelOf() === level) return;
+    study = { ...study, level };
+    renderLevel();
+    renderStatus();
+    tell('setLevel', { id: question.id, level });
+  }
+
+  document.getElementById('level-control').addEventListener('click', (e) => {
+    const option = e.target.closest('.level-option');
+    if (option) setLevel(option.dataset.level);
+  });
+
+  // 라디오 묶음처럼 화살표로 옮겨 고른다 (웹과 같다)
+  document.getElementById('level-control').addEventListener('keydown', (e) => {
+    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+    if (!step) return;
+    e.preventDefault();
+    const index = levelOptions.findIndex((option) => option.dataset.level === levelOf());
+    const next = levelOptions[(index + step + levelOptions.length) % levelOptions.length];
+    setLevel(next.dataset.level);
+    next.focus();
+  });
+
+  // 마지막으로 그린 학습 기록 (같은 기록이 다시 오면 메모를 새로 그리지 않는다. 넘긴 뒤 앱이 같은 기록을 뒤따라 넘긴다)
+  let studySig = '';
+
+  // id: 이 기록의 질문. 빠르게 넘기는 동안 앱이 뒤따라 넘기는 지나간 질문의 기록은 버린다
+  window.setStudy = function (state, id) {
+    if (id !== undefined && id !== question.id) return;
+    const sig = JSON.stringify(state);
+    if (sig === studySig) return;
+    studySig = sig;
+    applyStudy(state);
+  };
+
+  function applyStudy(state) {
     study = state;
-    memoSection.hidden = !state;
+    studySection.hidden = !state;
     memoRepo.hidden = !state || state.canCommit;
     renderStatus();
     if (!state) {
       resetMemo();
-      return;
+    } else {
+      renderLevel();
+      if (!editor) renderMemo();
+      else adoptRecords();
+      moveOldDrafts();
     }
-    if (!editor) renderMemo();
-    else adoptRecords();
-    moveOldDrafts();
-  };
+    // 새 질문을 그린 직후면, 학습 기록까지 그려 길어진 문서에서 읽던 자리로 다시 맞춘다
+    if (pendingScroll !== null) {
+      restoreScroll();
+      pendingScroll = null;
+    }
+  }
 
   // 메모 창을 연 뒤 새로 읽은 기록이 오면(메모 창을 열 때 앱이 다시 읽는다): 아직 쓰기 시작하지 않았으면 최신 초안(없으면 메모)으로
   // 바꾸고 알린다. 쓰기 시작했으면 그대로 두고, 저장할 때 새로 읽어 합친다 (웹 renderRecords와 같다)
@@ -160,9 +548,17 @@
   // 앱이 저장 결과와 함께 넘긴 이 질문의 최신 기록으로 바꾼다 (화면 상태가 바뀌어 setStudy가 오기 전에 바로 그리려고).
   // 그사이 다른 질문으로 넘어갔으면 버린다 (예전 질문의 기록으로 새 질문의 메모를 그리지 않게)
   function take(result, id) {
-    if (result?.study && id === question.id) study = result.study;
+    if (result?.study && id === question.id) {
+      study = result.study;
+      studySig = ''; // 앱이 뒤이어 넘기는 같은 기록도 그대로 다시 그린다 (예전과 같게)
+    }
     return result || {};
   }
+
+  statusLevel.addEventListener('click', (e) => {
+    e.preventDefault();
+    studySection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
 
   statusMemo.addEventListener('click', (e) => {
     e.preventDefault();
@@ -260,15 +656,16 @@
     return button;
   }
 
-  function memoFoot() {
+  // record: 그 질문의 학습 기록 (옆 질문의 그림도 같은 모양으로 그린다)
+  function memoFoot(record = study) {
     const foot = make('div', 'memo-foot');
-    if (study?.memoAt) {
-      const when = make('time', '', `${formatWhen(study.memoAt)} 저장`);
-      when.dateTime = new Date(study.memoAt).toISOString();
+    if (record?.memoAt) {
+      const when = make('time', '', `${formatWhen(record.memoAt)} 저장`);
+      when.dateTime = new Date(record.memoAt).toISOString();
       foot.append(when);
     }
     // 커밋에 실패했거나 예전 임시저장으로 저장해 아직 GitHub에 없는 메모
-    if (study?.uncommitted) {
+    if (record?.uncommitted) {
       const retry = make('button', 'link-btn', '올리기');
       retry.type = 'button';
       retry.dataset.action = 'memo-recommit';

@@ -5,22 +5,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -32,34 +27,26 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.maeilmail.app.account.Records
 import com.maeilmail.app.data.Library
 import com.maeilmail.app.data.Question
 import com.maeilmail.app.ui.theme.AppTheme
-import com.maeilmail.app.ui.theme.LineIcons
-import com.maeilmail.app.ui.theme.Radius
 import com.maeilmail.app.ui.theme.TextStyles
 import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * 질문 화면: 답변을 한 장의 문서로 읽고, 아래 막대에서 이해도를 고르고, 본문 끝에서 메모를 본다.
- * 위는 돌아갈 목록의 이름과 별표, 아래 막대는 이전 · 이해도 · 다음이다. 이전·다음 질문의 제목은 본문 끝에 있다.
- * 메모는 메모 창에서 고친다: 본문 위에 겹쳐 여는 한 화면으로, 열려 있는 동안 위아래 막대를 숨기고 뒤로 가기는 메모 창이 받는다.
+ * 질문 화면: 답변을 한 장의 문서로 읽고, 본문 끝의 학습 기록에서 이해도를 고르고 메모를 본다.
+ * 위는 돌아갈 목록의 이름, 순서, 별표다. 아래 막대는 없고, 본문이 화면 아래 끝까지 닿는다. 이전·다음 질문으로는 좌우로 밀어 넘긴다.
+ * 메모는 메모 창에서 고친다: 본문 위에 겹쳐 여는 한 화면으로, 열려 있는 동안 위 막대를 숨기고 뒤로 가기는 메모 창이 받는다.
  * 메모 창을 연 채 떠나려 하면(알림으로 다른 질문 열기) 메모 창이 먼저 저장하지 않은 변경을 어떻게 할지 묻는다.
  *
  * origin: 돌아갈 목록의 이름 (예: 질문 목록, 복습 필요)
  * order: 이전·다음으로 넘길 순서. 질문 목록에서 열었으면 그 목록에 보이던 순서다.
  * interrupt: 앱 밖(알림, 위젯, 메일)에서 다른 화면을 열어 달라고 했을 때 할 일. 그대로 있기로 하면 onStay를 부른다.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun QuestionScreen(
     state: Library.State,
@@ -102,13 +89,40 @@ fun QuestionScreen(
     }
 
     val index = order.indexOf(id)
-    val prev = order.getOrNull(index - 1)?.let { state.catalog.question(it) }
-    val next = order.getOrNull(index + 1)?.let { state.catalog.question(it) }
+
+    // 좌우로 밀면 함께 보일 앞뒤 두 질문씩의 본문 (질문 ID → 본문). 보던 질문이나 순서가 바뀌면 다시 읽는다.
+    // 빠르게 여러 번 넘겨도 본문 스크립트가 앱을 기다리지 않고 이어서 넘기도록, 바로 옆 너머의 질문까지 넘긴다
+    val shownId = loaded?.first
+    // 목차가 바뀌면(답변을 새로 받음) 읽어 둔 본문을 버리고 새로 읽는다
+    var nearContent by remember(state.catalog) { mutableStateOf<Map<String, String>>(emptyMap()) }
+    LaunchedEffect(shownId, order, state.catalog) {
+        val at = order.indexOf(shownId)
+        if (at < 0) return@LaunchedEffect
+        val loadedNow = HashMap<String, String>()
+        // 바로 옆 질문을 먼저 넘기고, 그 너머는 뒤이어 넘긴다. 이미 읽어 둔 것은 다시 읽지 않는다
+        for (step in listOf(listOf(-1, 1), listOf(-2, 2))) {
+            for (near in step.mapNotNull { order.getOrNull(at + it) }) {
+                loadedNow[near] = nearContent[near] ?: state.catalog.question(near)?.let { Library.content(it) }.orEmpty()
+            }
+            nearContent = HashMap(loadedNow)
+        }
+    }
+
+    /** 순서에서 at번째 질문을 옆 질문으로 (없으면 null) */
+    fun neighborAt(at: Int): Neighbor? {
+        val q = order.getOrNull(at)?.let(state.catalog::question) ?: return null
+        return Neighbor(
+            question = q,
+            meta = metaOf(q),
+            markdown = nearContent[q.id].orEmpty(),
+            study = if (records.signedIn) studyOf(records, q.id) else null,
+        )
+    }
 
     // 화면 끝까지 그리므로(edge-to-edge) 키보드가 올라와도 창이 줄지 않는다. 키보드만큼 직접 줄여 메모 칸과 버튼이 가리지 않게 한다
-    val imeVisible = WindowInsets.isImeVisible
     Column(Modifier.fillMaxSize().background(colors.bgCanvas).imePadding()) {
-        // 메모 창은 본문(WebView) 안에서 화면 전체를 쓰므로, 위아래 막대를 숨기고 상태 표시줄과 아래 손잡이 자리만 비운다
+        // 메모 창은 본문(WebView) 안에서 화면 전체를 쓰므로, 위 막대를 숨기고 상태 표시줄과 아래 손잡이 자리만 비운다.
+        // 메모 창을 닫은 동안에는 본문이 아래 손잡이 뒤까지 닿고, 본문의 끝만 그만큼 띄운다 (bottomInset)
         if (!memoOpen) PageBar(origin, onBack = onBack) {
             if (order.size > 1 && index >= 0) {
                 Text(
@@ -146,9 +160,12 @@ fun QuestionScreen(
                     title = shownQuestion.title,
                     markdown = shown.second,
                     modifier = Modifier.fillMaxSize(),
-                    prev = order.getOrNull(order.indexOf(shownQuestion.id) - 1)?.let { state.catalog.question(it) },
-                    next = order.getOrNull(order.indexOf(shownQuestion.id) + 1)?.let { state.catalog.question(it) },
+                    prev = order.indexOf(shownQuestion.id).takeIf { it >= 0 }?.let { neighborAt(it - 1) },
+                    next = order.indexOf(shownQuestion.id).takeIf { it >= 0 }?.let { neighborAt(it + 1) },
+                    prev2 = order.indexOf(shownQuestion.id).takeIf { it >= 0 }?.let { neighborAt(it - 2) },
+                    next2 = order.indexOf(shownQuestion.id).takeIf { it >= 0 }?.let { neighborAt(it + 2) },
                     study = if (records.signedIn) studyOf(records, shownQuestion.id) else null,
+                    bottomInset = if (memoOpen) 0.dp else WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
                     controller = viewer,
                     onRequest = { name, payload, reply ->
                         val memoId = payload.optString("id")
@@ -160,6 +177,7 @@ fun QuestionScreen(
                                 if (payload.optBoolean("left")) action() else stay()
                             }
                             "toast" -> payload.optString("text").takeIf { it.isNotEmpty() }?.let(Records::notify)
+                            "setLevel" -> Records.setLevel(memoId, Records.Level.of(payload.optString("level")))
                             // 메모 창을 열면 기록을 새로 읽는다 (다른 기기에서 방금 저장한 초안이나 메모로 열도록). 바뀌면 setStudy로 간다
                             "refreshRecords" -> Records.refresh(force = true)
                             "navigate" -> memoId.takeIf { it in order }?.let { to -> leave { onNavigate(to) } }
@@ -234,40 +252,6 @@ fun QuestionScreen(
                 )
             }
         }
-
-        // 키보드가 올라와 있거나(본문에서 무언가를 쓰는 중) 메모 창이 열려 있으면 아래 막대를 숨긴다
-        if (!imeVisible && !memoOpen) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .background(colors.bgCanvas)
-                    .navigationBarsPadding()
-                    .padding(horizontal = 4.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconBtn(
-                    LineIcons.ChevronLeft,
-                    contentDescription = "이전 질문",
-                    enabled = prev != null,
-                    onClick = { prev?.let { leave { onNavigate(it.id) } } },
-                )
-                if (records.signedIn && question != null) {
-                    LevelBar(
-                        records.level(id),
-                        onPick = { Records.setLevel(id, it) },
-                        modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
-                    )
-                } else {
-                    Spacer(Modifier.weight(1f))
-                }
-                IconBtn(
-                    LineIcons.ChevronRight,
-                    contentDescription = "다음 질문",
-                    enabled = next != null,
-                    onClick = { next?.let { leave { onNavigate(it.id) } } },
-                )
-            }
-        }
     }
 
     // 메모 칸의 "저장소 고르기": 읽던 자리와 쓰던 메모를 잃지 않게 이 화면 위에서 고른다
@@ -309,43 +293,6 @@ private fun studyOf(records: Records.State, id: String) = StudyState(
     canCommit = records.signedIn && records.memoRepo != null,
     repo = records.memoRepo?.fullName,
 )
-
-/** 이해도: 셋 중 하나를 고르는 칸 (웹 .level-control). 고른 칸은 그 수준의 색을 띤다 */
-@Composable
-private fun LevelBar(selected: Records.Level, onPick: (Records.Level) -> Unit, modifier: Modifier = Modifier) {
-    val colors = AppTheme.colors
-    Row(
-        modifier
-            .background(colors.bgPaper, Radius.group)
-            .padding(3.dp)
-            .selectableGroup(),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        for (level in Records.Level.entries) {
-            val on = level == selected
-            val (background, ink, dot) = levelColors(level)
-            Row(
-                Modifier
-                    .weight(1f)
-                    .heightIn(min = 46.dp)
-                    .clip(Radius.control)
-                    .background(if (!on) Color.Transparent else if (level == Records.Level.NEW) colors.bgHover else background)
-                    .selectable(selected = on, role = Role.RadioButton, onClick = { onPick(level) })
-                    .padding(horizontal = 4.dp, vertical = 2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(7.dp, Alignment.CenterHorizontally),
-            ) {
-                Box(Modifier.size(7.dp).background(dot, Radius.dot))
-                Text(
-                    level.label,
-                    style = TextStyles.button.copy(fontSize = 13.5.sp),
-                    fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold,
-                    color = if (!on) colors.textMuted else if (level == Records.Level.NEW) colors.textMain else ink,
-                )
-            }
-        }
-    }
-}
 
 /** 제목 위에 보일 번호와 카테고리. 예: FE-1 · JavaScript 기초와 런타임 */
 private fun metaOf(q: Question): String = if (q.categoryName.isEmpty()) q.label else "${q.label} · ${q.categoryName}"

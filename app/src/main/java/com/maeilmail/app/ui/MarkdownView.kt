@@ -25,15 +25,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.maeilmail.app.account.Records
 import com.maeilmail.app.data.Question
 import com.maeilmail.app.ui.theme.AppTheme
 import org.json.JSONObject
 
-/** 본문 끝 메모 칸에 넘길 이 질문의 기록 */
+/** 본문 끝 학습 기록 칸(이해도 · 내 메모)에 넘길 이 질문의 기록 */
 data class StudyState(val item: Records.Item, val canCommit: Boolean, val repo: String?) {
     fun toJson(): JSONObject = JSONObject()
+        .put("level", item.level.key ?: "new")
         .put("memo", item.memo ?: "")
         .put("memoAt", item.memoAt ?: JSONObject.NULL)
         .put("uncommitted", item.memoUncommitted)
@@ -44,6 +47,24 @@ data class StudyState(val item: Records.Item, val canCommit: Boolean, val repo: 
 
 /** 본문 스크립트에 넘기는 초안 { text, at, base } */
 fun Records.Draft.toJson(): JSONObject = JSONObject().put("text", text).put("at", at).put("base", base)
+
+/**
+ * 좌우로 밀면 손가락을 따라 함께 보일 이전·다음 질문. 본문 스크립트가 이 질문의 문서를 미리 그려 두고,
+ * 넘기면 이것으로 그 질문을 바로 그린다. markdown이 ""이면 아직 읽지 못했거나 받아 둔 답변이 없다.
+ */
+data class Neighbor(
+    val question: Question,
+    val meta: String,
+    val markdown: String,
+    val study: StudyState?,
+) {
+    fun toJson(): JSONObject = JSONObject()
+        .put("id", question.id)
+        .put("title", question.title)
+        .put("meta", meta)
+        .put("markdown", markdown)
+        .put("study", study?.toJson() ?: JSONObject.NULL)
+}
 
 /** 화면이 본문 스크립트에 시키는 일 */
 class ViewerController {
@@ -63,7 +84,8 @@ class ViewerController {
 /**
  * 마크다운 본문을 웹 서비스와 같은 방식(marked + Prism)으로 그린다. assets/viewer/viewer.html 참고.
  * 한 화면에서 질문을 넘길 때는 WebView를 새로 만들지 않고 render()로 내용만 바꾼다.
- * 본문 끝의 내 메모와 이전·다음 질문도 이 안에서 그린다. 메모 편집기는 웹과 같은 memo-ui.js다.
+ * 본문 끝의 학습 기록도 이 안에서 그린다. 메모 편집기는 웹과 같은 memo-ui.js다.
+ * 좌우로 밀어 옆 질문으로 넘기는 것도 본문 스크립트가 한다: 옆 질문을 미리 그려 두고 손가락을 따라 보이다가, 넘기면 navigate로 알린다.
  *
  * onRequest: 본문 스크립트가 앱에 부탁하는 일 (확인 창, 메모 저장 등). reply로 답하면 스크립트가 이어서 한다.
  */
@@ -76,11 +98,16 @@ fun MarkdownView(
     title: String,
     markdown: String,
     modifier: Modifier = Modifier,
-    /** 본문 끝에 제목을 보일 이전·다음 질문 */
-    prev: Question? = null,
-    next: Question? = null,
+    /** 이전·다음 질문: 좌우로 밀면 손가락을 따라 함께 보인다 */
+    prev: Neighbor? = null,
+    next: Neighbor? = null,
+    /** 그 너머의 질문. 넘긴 직후 앱이 따라잡기 전에 한 번 더 넘겨도 옆 질문이 있게 미리 넘긴다 */
+    prev2: Neighbor? = null,
+    next2: Neighbor? = null,
     /** 이 질문의 학습 기록. null이면 학습 기록 칸을 감춘다 (로그인하지 않음) */
     study: StudyState? = null,
+    /** 본문이 화면 아래 끝(손잡이 뒤)까지 닿을 때, 본문의 끝을 그만큼 더 띄운다 */
+    bottomInset: Dp = 0.dp,
     controller: ViewerController = remember { ViewerController() },
     onRequest: (name: String, payload: JSONObject, reply: (JSONObject) -> Unit) -> Unit = { _, _, _ -> },
 ) {
@@ -143,7 +170,9 @@ fun MarkdownView(
         }
     }
 
-    LaunchedEffect(pageReady, key, markdown, prev?.id, next?.id) {
+    // 차례: render → setStudy → setNeighbors. 좌우로 넘기면 본문 스크립트가 먼저 그 질문을 그리고 navigate로 알리므로,
+    // 여기서 넘기는 것은 뒤따라 맞추는 것이다. 빠르게 여러 번 넘기면 지나간 질문의 것이 늦게 가므로 질문 ID를 함께 넘긴다
+    LaunchedEffect(pageReady, key, markdown, title) {
         if (!pageReady) return@LaunchedEffect
         val payload = JSONObject()
             .put("id", key)
@@ -153,15 +182,31 @@ fun MarkdownView(
             .put("dark", colors.isDark)
             // 메모 창의 아이콘도 앱의 아이콘처럼 휴대폰 글자 크기를 따른다 (scaledIcon과 같은 비율)
             .put("iconScale", fontScale.coerceIn(0.8f, 1.3f).toDouble())
-            .put("prev", prev?.toJson() ?: JSONObject.NULL)
-            .put("next", next?.toJson() ?: JSONObject.NULL)
         webView.evaluateJavascript("render($payload)", null)
     }
 
     // 학습 기록은 본문을 다시 그리지 않고 그 칸만 바꾼다 (웹에서 바뀐 기록을 받아 와도 읽던 자리가 그대로다)
     LaunchedEffect(pageReady, key, study) {
         if (!pageReady) return@LaunchedEffect
-        webView.evaluateJavascript("setStudy(${study?.toJson() ?: "null"})", null)
+        webView.evaluateJavascript("setStudy(${study?.toJson() ?: "null"}, ${JSONObject.quote(key)})", null)
+    }
+
+    // 옆 질문은 본문과 따로 넘긴다 (옆 질문의 기록이나 본문만 바뀌어도 지금 문서를 다시 그리지 않는다)
+    LaunchedEffect(pageReady, key, prev, next, prev2, next2) {
+        if (!pageReady) return@LaunchedEffect
+        val payload = JSONObject()
+            .put("id", key)
+            .put("prev2", prev2?.toJson() ?: JSONObject.NULL)
+            .put("prev", prev?.toJson() ?: JSONObject.NULL)
+            .put("next", next?.toJson() ?: JSONObject.NULL)
+            .put("next2", next2?.toJson() ?: JSONObject.NULL)
+        webView.evaluateJavascript("setNeighbors($payload)", null)
+    }
+
+    // WebView의 CSS 픽셀은 dp와 같다
+    LaunchedEffect(pageReady, bottomInset) {
+        if (!pageReady) return@LaunchedEffect
+        webView.evaluateJavascript("setInsets({ bottom: ${bottomInset.value} })", null)
     }
 
     LaunchedEffect(pageReady, colors.isDark) {
@@ -173,7 +218,6 @@ fun MarkdownView(
     AndroidView(factory = { webView }, modifier = modifier)
 }
 
-private fun Question.toJson(): JSONObject = JSONObject().put("id", id).put("title", title)
 
 /** 본문 스크립트가 부르는 앱 기능. 스크립트는 WebView의 별도 스레드에서 부르므로 화면 스레드로 넘긴다 */
 private class Bridge(
